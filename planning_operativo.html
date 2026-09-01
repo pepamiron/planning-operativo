@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planning Operativo — Mercadona Online</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f8f8f6;
+  --surface: #ffffff;
+  --surface2: #f2f2f0;
+  --border: rgba(0,0,0,0.1);
+  --border-strong: rgba(0,0,0,0.22);
+  --text: #1a1a18;
+  --text-muted: #6b6b66;
+  --text-faint: #a0a09a;
+  --teal: #1D9E75;
+  --teal-light: #E1F5EE;
+  --teal-border: #9FE1CB;
+  --teal-dark: #0F6E56;
+  --blue: #378ADD;
+  --blue-light: #E6F1FB;
+  --blue-border: #B5D4F4;
+  --blue-dark: #185FA5;
+  --m2-bg: #fffef5; --m2-border: #e8e0a0; --m2-text: #6b5e00;
+  --m1-bg: #f5f8ff; --m1-border: #b5c8f4; --m1-text: #185FA5;
+  --radius: 8px; --radius-lg: 12px;
+  --panel-w: 420px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a18; --surface: #242422; --surface2: #2e2e2b;
+    --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.22);
+    --text: #f0f0ec; --text-muted: #9a9a94; --text-faint: #666660;
+    --teal-light: #04342C; --teal-border: #085041; --teal-dark: #5DCAA5;
+    --blue-light: #042C53; --blue-border: #0C447C; --blue-dark: #85B7EB;
+    --m2-bg: #2a2700; --m2-border: #5a5000; --m2-text: #d4c040;
+    --m1-bg: #001a3a; --m1-border: #0C447C; --m1-text: #85B7EB;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Layout ── */
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+  transition: padding-right .3s;
+}
+.page.panel-open { padding-right: calc(var(--panel-w) + 2rem); }
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.page-header h1 {
+  font-size: 20px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+.page-header h1 i { font-size: 20px; color: var(--teal); }
+.page-header p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.hint {
+  font-size: 12px; color: var(--text-faint);
+  background: var(--surface2); border: 0.5px solid var(--border);
+  border-radius: var(--radius); padding: 6px 12px;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+
+/* ── Timeline ── */
+.timeline-wrap { overflow-x: auto; padding-bottom: 8px; }
+.timeline { min-width: 980px; display: flex; flex-direction: column; }
+
+.weeks-row {
+  display: grid;
+  grid-template-columns: 130px repeat(5,1fr) 1px repeat(3,1fr);
+  gap: 6px; margin-bottom: 8px; align-items: stretch;
+}
+.label-spacer { background: transparent; }
+.week-cell {
+  text-align: center; padding: 7px 6px;
+  border-radius: var(--radius); font-size: 11px; font-weight: 600;
+  border: 0.5px solid var(--border);
+}
+.week-cell .fase-tag { font-size: 10px; font-weight: 400; opacity:.75; display:block; margin-top:1px; }
+.week-cell.m2 { background:var(--m2-bg); color:var(--m2-text); border-color:var(--m2-border); }
+.week-cell.m1 { background:var(--m1-bg); color:var(--m1-text); border-color:var(--m1-border); }
+.week-cell.current { background:var(--teal) !important; color:#fff !important; border-color:var(--teal-dark) !important; box-shadow:0 0 0 3px rgba(29,158,117,.2); }
+.week-cell.current .fase-tag { opacity:.85; }
+.divider-head { background: var(--border-strong); width:1px; align-self:stretch; }
+
+.phase-legend { display:flex; gap:12px; margin-bottom:14px; margin-left:136px; }
+.phase-pill {
+  font-size:11px; padding:3px 10px; border-radius:20px; border:0.5px solid; font-weight:500;
+}
+.phase-pill.m2 { background:var(--m2-bg); color:var(--m2-text); border-color:var(--m2-border); }
+.phase-pill.m1 { background:var(--m1-bg); color:var(--m1-text); border-color:var(--m1-border); }
+
+.area-row {
+  display: grid;
+  grid-template-columns: 130px repeat(5,1fr) 1px repeat(3,1fr);
+  gap: 6px; margin-bottom: 10px; align-items: start;
+}
+.area-divider { background:var(--border); width:1px; align-self:stretch; }
+.area-label { display:flex; flex-direction:column; gap:4px; padding-top:6px; padding-right:8px; }
+.area-dot-label { display:flex; align-items:center; gap:7px; }
+.area-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:1px; }
+.dot-teal { background:var(--teal); }
+.dot-blue { background:var(--blue); }
+.area-name { font-size:12px; font-weight:600; line-height:1.3; }
+.cell-empty { min-height:44px; }
+.sep-row { height:1px; background:var(--border); margin:8px 0 14px; }
+
+/* ── Task card ── */
+.task-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color .15s, background .12s;
+  user-select: none;
+}
+.task-card:last-child { margin-bottom: 0; }
+.task-card:hover { border-color: var(--border-strong); background: var(--surface2); }
+.task-card.active { border-color: var(--border-strong); background: var(--surface2); }
+.task-card.teal { border-left: 3px solid var(--teal); }
+.task-card.blue { border-left: 3px solid var(--blue); }
+
+.task-title {
+  font-size: 12px; font-weight: 500; line-height: 1.35;
+  display: flex; align-items: flex-start; gap: 5px;
+  margin-bottom: 5px;
+}
+.task-title i { font-size: 13px; margin-top:1px; flex-shrink:0; color:var(--text-muted); }
+
+.card-meta {
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+}
+.card-badge {
+  font-size: 10px; padding: 1px 6px;
+  border-radius: 4px; border: 0.5px solid var(--border);
+  color: var(--text-faint); background: var(--surface2);
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.card-badge i { font-size: 11px; }
+.card-badge.has-steps { color: var(--teal-dark); border-color: var(--teal-border); background: var(--teal-light); }
+.card-badge.has-links { color: var(--blue-dark); border-color: var(--blue-border); background: var(--blue-light); }
+
+/* ── Side panel ── */
+.panel-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.15);
+  z-index: 100;
+}
+.panel-overlay.open { display: block; }
+
+.side-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: var(--panel-w);
+  background: var(--surface);
+  border-left: 0.5px solid var(--border-strong);
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+}
+.side-panel.open { transform: translateX(0); }
+
+.panel-header {
+  padding: 16px 18px 14px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex; align-items: flex-start; gap: 10px;
+  flex-shrink: 0;
+}
+.panel-color-bar {
+  width: 4px; border-radius: 2px; align-self: stretch; flex-shrink: 0;
+}
+.panel-color-bar.teal { background: var(--teal); }
+.panel-color-bar.blue { background: var(--blue); }
+.panel-header-text { flex: 1; min-width: 0; }
+.panel-header-text h2 { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.panel-header-text .panel-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.panel-close {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 20px; padding: 2px;
+  display: flex; align-items: center; flex-shrink: 0;
+  border-radius: 6px; transition: background .12s;
+}
+.panel-close:hover { background: var(--surface2); }
+
+.panel-body {
+  flex: 1; overflow-y: auto; padding: 18px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+/* Section inside panel */
+.psec-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-faint);
+  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+}
+.psec-label i { font-size: 14px; }
+
+/* Steps */
+.steps-list { display: flex; flex-direction: column; gap: 5px; }
+.step-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: var(--surface2); border-radius: var(--radius);
+  padding: 6px 8px; border: 0.5px solid var(--border);
+}
+.step-num {
+  font-size: 10px; font-weight: 600; color: var(--text-faint);
+  min-width: 16px; text-align: right; padding-top: 2px;
+}
+.step-text {
+  flex: 1; font-size: 13px; color: var(--text);
+  background: transparent; border: none; outline: none;
+  font-family: inherit; resize: none;
+  min-height: 20px; line-height: 1.45;
+  overflow: hidden;
+}
+.step-del {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-faint); font-size: 16px; padding: 1px 2px;
+  border-radius: 4px; transition: color .12s, background .12s;
+  display: flex; align-items: center; flex-shrink: 0;
+  margin-top: 1px;
+}
+.step-del:hover { color: #cc3333; background: #fff0f0; }
+
+.reorder-col {
+  display: flex; align-items: center; flex-shrink: 0;
+  margin-top: 1px; cursor: grab; color: var(--text-faint);
+  touch-action: none;
+}
+.reorder-col:active { cursor: grabbing; }
+.reorder-col i { font-size: 15px; }
+
+.step-row, .link-row-panel { transition: transform .12s, opacity .12s; }
+.step-row.dragging, .link-row-panel.dragging { opacity: .35; }
+.step-row.drag-over-top, .link-row-panel.drag-over-top { box-shadow: inset 0 2px 0 0 var(--teal); }
+.step-row.drag-over-bottom, .link-row-panel.drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--teal); }
+
+.btn-add-step {
+  font-size: 12px; padding: 5px 10px;
+  border: 0.5px dashed var(--border-strong);
+  border-radius: var(--radius); background: transparent;
+  color: var(--text-muted); cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; gap: 5px;
+  transition: background .12s, border-color .12s;
+  width: 100%;
+}
+.btn-add-step:hover { background: var(--surface2); border-color: var(--teal); color: var(--teal-dark); }
+
+/* Links */
+.links-list { display: flex; flex-direction: column; gap: 5px; }
+.link-row-panel {
+  display: flex; align-items: center; gap: 6px;
+}
+.link-name-inp {
+  width: 110px; flex-shrink: 0;
+  font-size: 12px; padding: 5px 8px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: 6px; background: var(--surface);
+  color: var(--text); font-family: inherit; outline: none;
+}
+.link-name-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(55,138,221,.15); }
+.link-url-inp {
+  flex: 1; min-width: 0;
+  font-size: 12px; padding: 5px 8px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: 6px; background: var(--surface);
+  color: var(--text); font-family: inherit; outline: none;
+}
+.link-url-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(55,138,221,.15); }
+.link-go {
+  background: transparent; border: 0.5px solid var(--blue-border);
+  color: var(--blue-dark); border-radius: 6px; cursor: pointer;
+  font-size: 16px; padding: 4px 6px; display: flex; align-items: center;
+  transition: background .12s; flex-shrink: 0;
+  text-decoration: none;
+}
+.link-go:hover { background: var(--blue-light); }
+.link-go.disabled { opacity: .3; pointer-events: none; }
+.link-del-btn {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-faint); font-size: 16px; padding: 3px 4px;
+  border-radius: 4px; display: flex; align-items: center; flex-shrink: 0;
+  transition: color .12s, background .12s;
+}
+.link-del-btn:hover { color: #cc3333; background: #fff0f0; }
+
+.btn-add-link {
+  font-size: 12px; padding: 5px 10px;
+  border: 0.5px dashed var(--border-strong);
+  border-radius: var(--radius); background: transparent;
+  color: var(--text-muted); cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; gap: 5px;
+  transition: background .12s, border-color .12s;
+  width: 100%;
+}
+.btn-add-link:hover { background: var(--surface2); border-color: var(--blue); color: var(--blue-dark); }
+
+/* Panel footer */
+.panel-footer {
+  padding: 12px 18px;
+  border-top: 0.5px solid var(--border);
+  display: flex; gap: 8px; flex-shrink: 0;
+}
+.btn-save-panel {
+  flex: 1; padding: 8px;
+  background: var(--teal); color: #fff;
+  border: none; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: opacity .12s;
+}
+.btn-save-panel:hover { opacity: .88; }
+.btn-save-panel.blue-area { background: var(--blue); }
+.btn-cancel-panel {
+  padding: 8px 14px;
+  background: transparent; border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius); font-size: 13px;
+  color: var(--text-muted); cursor: pointer; font-family: inherit;
+  transition: background .12s;
+}
+.btn-cancel-panel:hover { background: var(--surface2); }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 1.5rem; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--text); color: var(--surface);
+  font-size: 13px; padding: 8px 16px; border-radius: 20px;
+  opacity: 0; transition: opacity .2s, transform .2s;
+  pointer-events: none; z-index: 200; white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Shared btn base */
+.btn {
+  font-size: 11px; padding: 3px 9px; border-radius: 6px;
+  border: 0.5px solid var(--border-strong);
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; font-family: inherit;
+  transition: background .12s;
+  display: inline-flex; align-items: center; gap: 4px;
+  text-decoration: none; line-height: 1.4;
+}
+.btn:hover { background: var(--surface2); }
+.btn i { font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="page" id="page">
+  <div class="page-header">
+    <div>
+      <h1><i class="ti ti-layout-columns"></i>Planning operativo — Mercadona Online</h1>
+      <p>Haz clic en cualquier tarea para ver el detalle, añadir pasos y gestionar enlaces</p>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <div class="hint"><i class="ti ti-click"></i>Clic en tarea para abrir detalle</div>
+      <div class="hint" id="sync-badge"><i class="ti ti-loader"></i><span id="sync-text">Iniciando…</span></div>
+      <button class="btn" id="btn-sync-now" onclick="syncToJsonBin()" title="Forzar sincronización manual (solo necesario para quien mantiene los datos)"><i class="ti ti-cloud-upload"></i>Sincronizar</button>
+    </div>
+  </div>
+
+  <div class="phase-legend">
+    <span class="phase-pill m2">◀ M-2 · 5 semanas</span>
+    <span class="phase-pill m1">M-1 · 3 semanas ▶</span>
+  </div>
+
+  <div class="timeline-wrap">
+    <div class="timeline" id="app"></div>
+  </div>
+</div>
+
+<!-- Side panel -->
+<div class="panel-overlay" id="overlay" onclick="closePanel()"></div>
+
+<div class="side-panel" id="panel">
+  <div class="panel-header">
+    <div class="panel-color-bar" id="panel-bar"></div>
+    <div class="panel-header-text">
+      <h2 id="panel-title"></h2>
+      <div class="panel-meta" id="panel-meta"></div>
+    </div>
+    <button class="panel-close" onclick="closePanel()" aria-label="Cerrar"><i class="ti ti-x"></i></button>
+  </div>
+
+  <div class="panel-body">
+
+    <!-- Steps section -->
+    <div>
+      <div class="psec-label"><i class="ti ti-list-check"></i>Pasos</div>
+      <div class="steps-list" id="steps-list"></div>
+      <button class="btn-add-step" onclick="addStep()">
+        <i class="ti ti-plus"></i>Añadir paso
+      </button>
+    </div>
+
+    <!-- Links section -->
+    <div>
+      <div class="psec-label"><i class="ti ti-link"></i>Enlaces</div>
+      <div class="links-list" id="links-list"></div>
+      <button class="btn-add-link" onclick="addLink()">
+        <i class="ti ti-plus"></i>Añadir enlace
+      </button>
+    </div>
+
+  </div>
+
+  <div class="panel-footer">
+    <button class="btn-save-panel" id="btn-save-panel" onclick="savePanel()">
+      <i class="ti ti-check"></i>Guardar
+    </button>
+    <button class="btn-cancel-panel" onclick="closePanel()">Cancelar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WEEKS = [
+  {key:'s1m2',label:'Sem 1',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:0},
+  {key:'s2m2',label:'Sem 2',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:1},
+  {key:'s3m2',label:'Sem 3',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:2},
+  {key:'s4m2',label:'Sem 4',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:3},
+  {key:'s5m2',label:'Sem 5',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:4},
+  {key:'s1m1',label:'Sem 1',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:0},
+  {key:'s2m1',label:'Sem 2',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:1},
+  {key:'s3m1',label:'Sem 3',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:2},
+];
+
+// Returns the Nth monday (0-based) of a given year+month
+function nthMonday(year, month, n) {
+  const d = new Date(year, month, 1);
+  const dow = d.getDay(); // 0=sun,1=mon...
+  const daysToMon = dow === 1 ? 0 : (8 - dow) % 7;
+  d.setDate(1 + daysToMon + n * 7);
+  return d;
+}
+
+// Returns set of week-keys that should be highlighted right now
+// Logic: for each "active cycle" (month objectives currently in planning),
+// find which planning week contains today and return its key.
+// Active cycles: any month M where M-2 or M-1 overlaps with current date.
+function getActiveWeekKeys() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const active = new Set();
+
+  // Check cycles for target months: current-1, current, current+1, current+2
+  // (covers all possible overlaps)
+  for (let delta = -1; delta <= 3; delta++) {
+    const targetDate = new Date(today.getFullYear(), today.getMonth() + delta, 1);
+    const tYear = targetDate.getFullYear();
+    const tMonth = targetDate.getMonth(); // 0-based
+
+    WEEKS.forEach(w => {
+      const refMonth = (tMonth + w.mOffset + 12) % 12;
+      const refYear = tYear + Math.floor((tMonth + w.mOffset) / 12) +
+                      (tMonth + w.mOffset < 0 ? 1 : 0) +
+                      (tMonth + w.mOffset < -12 ? 1 : 0);
+
+      // Correct year calculation
+      const absMonth = tMonth + w.mOffset;
+      const corrYear = tYear + Math.floor(absMonth / 12) - (absMonth < 0 && absMonth % 12 !== 0 ? 0 : 0);
+      // Simpler: just use Date arithmetic
+      const refDate = new Date(tYear, tMonth + w.mOffset, 1);
+      const rY = refDate.getFullYear();
+      const rM = refDate.getMonth();
+
+      const mondays = [];
+      for (let i = 0; i < 6; i++) {
+        const m = nthMonday(rY, rM, i);
+        if (m.getMonth() === rM) mondays.push(m);
+      }
+
+      if (w.weekIdx >= mondays.length) return;
+      const weekStart = mondays[w.weekIdx];
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+
+      if (today >= weekStart && today <= weekEnd) {
+        active.add(w.key);
+      }
+    });
+  }
+  return active;
+}
+
+const ACTIVE_WEEK_KEYS = getActiveWeekKeys();
+
+const AREAS = [
+  {
+    id:'centros', label:'Gestión\nCentros', color:'teal',
+    tasks:{
+      s1m2:[{id:'qcc',   title:'Crear QCC',                   icon:'ti-file-plus',  week:'Sem 1 · M-2'}],
+      s3m2:[{id:'nsd',   title:'Analizar NSD',                icon:'ti-chart-line', week:'Sem 3 · M-2'},
+            {id:'cmo',   title:'Curar Centros MO',            icon:'ti-building-store',week:'Sem 3 · M-2'}],
+      s4m2:[{id:'cdm',   title:'Informar Cambios CdM',        icon:'ti-mail',       week:'Sem 4 · M-2'}],
+      s5m2:[{id:'bote',  title:'Curar Bote Centros',          icon:'ti-checklist',  week:'Sem 5 · M-2'}],
+      s1m1:[{id:'ccpp',  title:'Mandar Correo Cambios CCPP',  icon:'ti-send',       week:'Sem 1 · M-1'}],
+    }
+  },
+  {
+    id:'oferta', label:'Gestión\nOferta', color:'blue',
+    tasks:{
+      s5m2:[{id:'propventa',title:'Validar Propuesta Venta',  icon:'ti-circle-check',week:'Sem 5 · M-2'}],
+      s1m1:[{id:'planif',   title:'Enviar Planificaciones',   icon:'ti-send',       week:'Sem 1 · M-1'}],
+    }
+  }
+];
+
+// Flat map id -> task+area for quick lookup
+const TASK_MAP = {};
+AREAS.forEach(a => {
+  Object.values(a.tasks).forEach(arr => arr.forEach(t => {
+    TASK_MAP[t.id] = { ...t, areaColor: a.color, areaLabel: a.label.replace('\n',' ') };
+  }));
+});
+
+// ══════════════════════════════════════════════════════════════
+// CONFIGURACIÓN JSONBIN — instrucciones al final de este mensaje.
+// Pega aquí tu Bin ID una vez creado en jsonbin.io. La Master Key
+// NO se pega aquí: se pide una sola vez con un prompt() y se queda
+// guardada solo en el navegador de quien la introduzca.
+// ══════════════════════════════════════════════════════════════
+const JSONBIN_BIN_ID = '6a96a75ef5f4af5e295be1c3';
+const JSONBIN_CONFIGURED = !!JSONBIN_BIN_ID && !JSONBIN_BIN_ID.startsWith('PON_AQUI');
+
+// Copia de tus tareas actuales, recuperada de tu localStorage anterior.
+// Se usa como respaldo si el bin no está configurado, si falla la conexión,
+// o como semilla la primera vez que sincronices con "Sincronizar".
+const INITIAL_DATA = {
+  "qcc": {
+    "steps": [
+      "Acceder al HTML del QCC de Expansión online",
+      "Actualizar los datos del HTML ejecutando la consulta de metabase y exportando en csv",
+      "Filtrar por mes y descargar en xlsx. Adjuntar por slack al canal Diario de los Colonialistas",
+      "Una vez actualizado por Alberto y Susi, actualizar el HTML, descargar en xlsx y pegar en Drive",
+      "Pasar a Maria la descarga completa para que envíe correo a CdM"
+    ],
+    "links": [
+      {"name": "HTML QCC Expansión online", "url": "https://pepamiron.github.io/QCCExpansion2026/"},
+      {"name": "Consulta Metabase ", "url": "https://metabase.prod.monline/question/32873-qcc-ntc-nsd-2026"},
+      {"name": "Slack", "url": "https://mercadonaonline.slack.com/archives/C0619RLG49Y"},
+      {"name": "Drive", "url": "https://docs.google.com/spreadsheets/d/1JRqWwX28IF2nfpzE6s7CsMkGVSpJ-TirC_vjXmJ2tK0/edit?gid=0#gid=0"}
+    ]
+  },
+  "propventa": {
+    "steps": [
+      "Negocio publica en canal slack las replanificaciones",
+      "Contactar con las tiendas implicadas e informar de los cambios a través de la vista preliminar en los meses afectados",
+      "Rellenar las Subidas Oferta en el Drive de Merca Oferta",
+      "Informar por slack de la cumplimentación"
+    ],
+    "links": [
+      {"name": "Subidas Oferta", "url": "https://docs.google.com/spreadsheets/d/1DhX8natid7bkb3UljV7oIawNYdEyMsxTZC3l8EqvvKE/edit?gid=919618989#gid=919618989"},
+      {"name": "Venta Mo", "url": "https://ventamo.prod.monline/?origin=&month=10&year=2025&day=21"}
+    ]
+  },
+  "planif": {
+    "steps": [
+      "Negocio publica el entregable ",
+      "Abrir el drive y pegar la nueva oferta. Ejecutar Scripts y descargar en pdf",
+      "Abrir enlace envío planificaciones. Pegar las rutas de los pdf descargados y ejecutar envio"
+    ],
+    "links": [
+      {"name": "Drive Planificaciones", "url": "https://docs.google.com/spreadsheets/d/19h8h3Ni8Dq46Ned0wguPYaR305yclw4C2yqGt0Z0mto/edit?gid=2114995375#gid=2114995375"},
+      {"name": "Envio Planificaciones", "url": "C:\\Users\\pmiron\\OneDrive - Mercadona\\Documentos\\Cambios Planificación.xlsm"},
+      {"name": "", "url": "C:\\Users\\pmiron\\OneDrive - Mercadona\\Documents\\Venta y planificación\\generador"}
+    ]
+  },
+  "cmo": {
+    "steps": [
+      "Cargar en centros MO los cambios de CP o de modelo",
+      "Actualizar en Drive las planificaciones realizadas",
+      "Contrastar que los datos de Centros MO y Drive coinciden"
+    ],
+    "links": [
+      {"name": "CentrosMo", "url": "https://centrosmo.prod.monline/centers/vlc1/"},
+      {"name": "Drive planificaciones", "url": "https://docs.google.com/spreadsheets/d/1DgJvulxq9bI_4owljXm-yj3SKVKEs9PL/edit?gid=1858854927#gid=1858854927"},
+      {"name": "Comparador", "url": "https://pepamiron.github.io/COMPARADORES/"}
+    ]
+  },
+  "bote": {
+    "steps": [
+      "Activar el servicio de NTC y NSD de las aperturas",
+      "NTC = fecha inicio mismo día de la apertura y se debe cargar mínimo 15 días antes del 1er día de formación ",
+      "NSD = fecha inicio un día antes de la apertura y se debe cargar mínimo 2 días antes de esa fecha",
+      "En caso de que las tiendas estén activas en TC, avisadles para que carguen la baja"
+    ],
+    "links": [
+      {"name": "Bote Centro", "url": "https://vhmcapfi100lb.sap.mercadona.com/sap/bc/ui2/flp#MDTE0118SemObj-display&/?sap-iapp-state--history=TASV0PLGKKXGZRBCYHOOI4MK15LXWADE8N3XXZYFQ&sap-iapp-state=AS5PK6NZ4GEBJO5BZN0DY21GVS74JAB25XBRYB9A"}
+    ]
+  },
+  "ccpp": {
+    "steps": [
+      "Acceder a la consulta y exportar a Excel",
+      "Enviar por correo"
+    ],
+    "links": [
+      {"name": "Consulta Movimientos", "url": "https://metabase.prod.monline/question/33103-tabla-movimientos-cp-mensuales-para-enviar-por-correo"},
+      {"name": "Guardar excel", "url": "C:\\Users\\pmiron\\OneDrive - Mercadona\\Documents\\Venta y planificación\\Cambios codigos postales"}
+    ]
+  },
+  "cdm": {
+    "steps": [
+      "Acceder a Control de cambios ",
+      "Actualizar los datos por si hubieran cambiado, ejecutando la consulta de metabase",
+      "Seleccionar el mes a informar y solo Tiendas",
+      "Verificar que todos los datos de la tabla son ok",
+      "Exportar a Excel y pegar en Plantilla Envío (PlantillaCorreosNTC.xlxm) en la pestaña  Datos",
+      "Ejecutar la consulta de cambios área reparto del mes a informar y exportar a json. Mover el documento a la ruta del enlace Generar Mapas con nombre mes Mmmm.json",
+      "Desde \"Generar_pdfs.bat\" generar todos los mapas de Área de Servicio del mes a enviar",
+      "Generar las planificaciones anuales del mes a enviar, exportar a pdf y guardar los pdfs en la misma carpeta de los mapas",
+      "Copiar la ruta de los pdf   y pegar en la plantilla de envio, pestaña Datos",
+      "Ejecutar correos. Se generan borradores en Outlook"
+    ],
+    "links": [
+      {"name": "Control de cambios", "url": "https://pepamiron.github.io/control-cambios-ntc/"},
+      {"name": "Consulta Control de cambios", "url": "https://metabase.prod.monline/question/32892-control-de-cambios"},
+      {"name": "Plantilla de Envio", "url": "https://mercadona365-my.sharepoint.com/personal/pmiron_mercadona_es/Documents/Documents/Venta y planificación"},
+      {"name": "Consulta metabese areas reparto", "url": "https://metabase.prod.monline/question/33813-consulta-areas-reparto-para-generar-mapas-pdf?mes=&tipo_centro="},
+      {"name": "Generar Mapas ", "url": "https://mercadona365-my.sharepoint.com/:f:/g/personal/pmiron_mercadona_es/IgB4fHrN9VfCQLSIPodVoSI1Ad13dcco2E0o5UzNcFtbVyY?e=0pjE36"},
+      {"name": "Drive control de cambios", "url": "https://docs.google.com/spreadsheets/d/1pWK-9kQTLQieeBpAr084azxtcuhyO0mc11PNrrQfMMk/edit?gid=0#gid=0"}
+    ]
+  }
+};
+
+const LS_KEY = 'mco_planning_v2';
+const LS_MASTERKEY = 'mco_planning_jsonbin_masterkey';
+
+function loadCachedData() {
+  try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function cacheData(d) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch {}
+}
+
+let DATA = loadCachedData() || INITIAL_DATA; // { [taskId]: { steps: [...], links: [{name,url},...] } }
+
+function getTaskData(id) {
+  return DATA[id] || { steps: [], links: [] };
+}
+
+let activeId = null;
+let panelSteps = [];
+let panelLinks = [];
+
+// ── Render timeline ─────────────────────────────────────────────
+
+function taskCardHTML(task, color) {
+  const d = getTaskData(task.id);
+  const hasSteps = d.steps && d.steps.filter(s=>s.trim()).length > 0;
+  const hasLinks = d.links && d.links.filter(l=>l.url.trim()).length > 0;
+  const isActive = activeId === task.id;
+  return `
+    <div class="task-card ${color}${isActive?' active':''}" onclick="openPanel('${task.id}')" id="card-${task.id}">
+      <div class="task-title"><i class="ti ${task.icon}"></i>${task.title}</div>
+      <div class="card-meta">
+        ${hasSteps ? `<span class="card-badge has-steps"><i class="ti ti-list-check"></i>${d.steps.filter(s=>s.trim()).length} pasos</span>` : ''}
+        ${hasLinks ? `<span class="card-badge has-links"><i class="ti ti-link"></i>${d.links.filter(l=>l.url.trim()).length} enlaces</span>` : ''}
+        ${!hasSteps && !hasLinks ? `<span class="card-badge"><i class="ti ti-click"></i>clic para editar</span>` : ''}
+      </div>
+    </div>`;
+}
+
+function cellHTML(tasks, color) {
+  if (!tasks || !tasks.length) return `<div class="cell-empty"></div>`;
+  return `<div>${tasks.map(t => taskCardHTML(t, color)).join('')}</div>`;
+}
+
+function renderTimeline() {
+  const app = document.getElementById('app');
+
+  function weekCellHTML(w) {
+    const isCurrent = ACTIVE_WEEK_KEYS.has(w.key);
+    const cls = isCurrent ? `week-cell ${w.cls} current` : `week-cell ${w.cls}`;
+    const dateRange = getWeekDateRange(w);
+    return `<div class="${cls}">${w.label}${dateRange ? `<span class="fase-tag">${w.fase} · ${dateRange}</span>` : `<span class="fase-tag">${w.fase}</span>`}</div>`;
+  }
+
+  const w5 = WEEKS.slice(0,5).map(weekCellHTML).join('');
+  const w3 = WEEKS.slice(5).map(weekCellHTML).join('');
+
+  const weeksRow = `<div class="weeks-row">
+    <div class="label-spacer"></div>${w5}
+    <div class="divider-head"></div>${w3}
+  </div>`;
+
+  const areaRows = AREAS.map((area,idx) => {
+    const cols5 = WEEKS.slice(0,5).map(w=>cellHTML(area.tasks[w.key],area.color)).join('');
+    const cols3 = WEEKS.slice(5).map(w=>cellHTML(area.tasks[w.key],area.color)).join('');
+    const names = area.label.split('\n');
+    const sep = idx < AREAS.length-1 ? `<div class="sep-row"></div>` : '';
+    return `<div class="area-row">
+      <div class="area-label">
+        <div class="area-dot-label">
+          <div class="area-dot dot-${area.color}"></div>
+          <span class="area-name">${names.join('<br>')}</span>
+        </div>
+      </div>
+      ${cols5}<div class="area-divider"></div>${cols3}
+    </div>${sep}`;
+  }).join('');
+
+  app.innerHTML = weeksRow + areaRows;
+}
+
+// Returns "2 jun" style short date range for a week slot, for current cycle
+function getWeekDateRange(w) {
+  // Use today's cycle: target month = current month + 2 for M-2, +1 for M-1
+  // We pick the first matching active cycle or default to current month + 2
+  const today = new Date();
+  // Find the target month where today falls in this week slot
+  for (let delta = -1; delta <= 3; delta++) {
+    const refDate = new Date(today.getFullYear(), today.getMonth() + delta + w.mOffset, 1);
+    const rY = refDate.getFullYear();
+    const rM = refDate.getMonth();
+    const mondays = [];
+    for (let i = 0; i < 6; i++) {
+      const m = nthMonday(rY, rM, i);
+      if (m.getMonth() === rM) mondays.push(m);
+    }
+    if (w.weekIdx >= mondays.length) continue;
+    const weekStart = mondays[w.weekIdx];
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    // Only show date range if it's the current or near-future week
+    const diffDays = Math.round((weekStart - today) / 86400000);
+    if (diffDays >= -7 && diffDays <= 60) {
+      const fmt = d => `${d.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]}`;
+      return `${fmt(weekStart)}`;
+    }
+  }
+  return null;
+}
+
+// ── Panel ────────────────────────────────────────────────────────
+
+function openPanel(id) {
+  const task = TASK_MAP[id];
+  if (!task) return;
+  activeId = id;
+
+  const d = getTaskData(id);
+  panelSteps = [...(d.steps || [])];
+  panelLinks = (d.links || []).map(l => ({ ...l }));
+
+  // Header
+  document.getElementById('panel-title').textContent = task.title;
+  document.getElementById('panel-meta').textContent = task.areaLabel + ' · ' + task.week;
+  const bar = document.getElementById('panel-bar');
+  bar.className = 'panel-color-bar ' + task.areaColor;
+  const saveBtn = document.getElementById('btn-save-panel');
+  saveBtn.className = 'btn-save-panel' + (task.areaColor === 'blue' ? ' blue-area' : '');
+
+  renderPanelSteps();
+  renderPanelLinks();
+
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('page').classList.add('panel-open');
+  renderTimeline();
+}
+
+function closePanel() {
+  activeId = null;
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('page').classList.remove('panel-open');
+  renderTimeline();
+}
+
+// ── Steps ────────────────────────────────────────────────────────
+
+function renderPanelSteps() {
+  const list = document.getElementById('steps-list');
+  if (!panelSteps.length) { list.innerHTML = ''; return; }
+  list.innerHTML = panelSteps.map((s,i) => `
+    <div class="step-row" id="sr-${i}" draggable="true"
+      ondragstart="dragStart(event,'step',${i})"
+      ondragover="dragOverRow(event,'step',${i})"
+      ondragleave="dragLeaveRow(event)"
+      ondrop="dropRow(event,'step',${i})"
+      ondragend="dragEnd(event)">
+      <div class="reorder-col" title="Arrastrar para reordenar"><i class="ti ti-grip-vertical"></i></div>
+      <span class="step-num">${i+1}</span>
+      <textarea class="step-text" id="st-${i}" rows="1"
+        oninput="syncStep(${i},this)"
+        onkeydown="stepKey(event,${i})"
+        placeholder="Describe el paso...">${escHtml(s)}</textarea>
+      <button class="step-del" onclick="delStep(${i})" title="Eliminar paso"><i class="ti ti-x"></i></button>
+    </div>`).join('');
+  panelSteps.forEach((_,i) => autoResize(document.getElementById('st-'+i)));
+}
+
+function autoResize(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function syncStep(i, el) {
+  panelSteps[i] = el.value;
+  autoResize(el);
+}
+
+function stepKey(e, i) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    panelSteps.splice(i+1, 0, '');
+    renderPanelSteps();
+    setTimeout(() => {
+      const next = document.getElementById('st-'+(i+1));
+      if (next) next.focus();
+    }, 0);
+  }
+  if (e.key === 'Backspace' && panelSteps[i] === '' && panelSteps.length > 1) {
+    e.preventDefault();
+    delStep(i);
+    setTimeout(() => {
+      const prev = document.getElementById('st-'+Math.max(0,i-1));
+      if (prev) { prev.focus(); const len = prev.value.length; prev.setSelectionRange(len,len); }
+    }, 0);
+  }
+}
+
+function addStep() {
+  panelSteps.push('');
+  renderPanelSteps();
+  setTimeout(() => {
+    const last = document.getElementById('st-'+(panelSteps.length-1));
+    if (last) last.focus();
+  }, 0);
+}
+
+function delStep(i) {
+  panelSteps.splice(i, 1);
+  renderPanelSteps();
+}
+
+// ── Drag & drop reorder (steps + links) ────────────────────────────
+
+let dragInfo = { type: null, index: null };
+
+function dragStart(e, type, i) {
+  dragInfo = { type, index: i };
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', String(i)); } catch {}
+  e.currentTarget.classList.add('dragging');
+}
+
+function dragOverRow(e, type, i) {
+  if (dragInfo.type !== type) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.currentTarget;
+  row.classList.remove('drag-over-top', 'drag-over-bottom');
+  if (i === dragInfo.index) return;
+  const rect = row.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+  row.classList.add(before ? 'drag-over-top' : 'drag-over-bottom');
+}
+
+function dragLeaveRow(e) {
+  e.currentTarget.classList.remove('drag-over-top', 'drag-over-bottom');
+}
+
+function dropRow(e, type, targetIndex) {
+  if (dragInfo.type !== type || dragInfo.index === null) return;
+  e.preventDefault();
+  const row = e.currentTarget;
+  const rect = row.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+  let insertAt = before ? targetIndex : targetIndex + 1;
+
+  const list = type === 'step' ? panelSteps : panelLinks;
+  const from = dragInfo.index;
+  if (from === insertAt || from === insertAt - 1) {
+    row.classList.remove('drag-over-top', 'drag-over-bottom');
+    return;
+  }
+  const [item] = list.splice(from, 1);
+  if (from < insertAt) insertAt--;
+  list.splice(insertAt, 0, item);
+
+  if (type === 'step') renderPanelSteps(); else renderPanelLinks();
+}
+
+function dragEnd(e) {
+  document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el =>
+    el.classList.remove('drag-over-top', 'drag-over-bottom'));
+  dragInfo = { type: null, index: null };
+}
+
+// ── Links ────────────────────────────────────────────────────────
+
+function renderPanelLinks() {
+  const list = document.getElementById('links-list');
+  if (!panelLinks.length) { list.innerHTML = ''; return; }
+  list.innerHTML = panelLinks.map((l,i) => {
+    const hasUrl = l.url && l.url.trim();
+    return `
+      <div class="link-row-panel" id="lr-${i}" draggable="true"
+        ondragstart="dragStart(event,'link',${i})"
+        ondragover="dragOverRow(event,'link',${i})"
+        ondragleave="dragLeaveRow(event)"
+        ondrop="dropRow(event,'link',${i})"
+        ondragend="dragEnd(event)">
+        <div class="reorder-col" title="Arrastrar para reordenar"><i class="ti ti-grip-vertical"></i></div>
+        <input class="link-name-inp" id="ln-${i}" placeholder="Nombre" value="${escAttr(l.name||'')}"
+          oninput="syncLinkName(${i},this)">
+        <input class="link-url-inp" id="lu-${i}" type="url" placeholder="https://…" value="${escAttr(l.url||'')}"
+          oninput="syncLinkUrl(${i},this)">
+        <a class="link-go${hasUrl?'':' disabled'}" href="${hasUrl?escAttr(l.url):'#'}"
+          target="_blank" rel="noopener" title="Abrir enlace" id="lg-${i}">
+          <i class="ti ti-external-link"></i>
+        </a>
+        <button class="link-del-btn" onclick="delLink(${i})" title="Eliminar enlace">
+          <i class="ti ti-trash"></i>
+        </button>
+      </div>`;
+  }).join('');
+}
+
+function syncLinkName(i,el) { panelLinks[i].name = el.value; }
+function syncLinkUrl(i,el) {
+  panelLinks[i].url = el.value;
+  const go = document.getElementById('lg-'+i);
+  if (go) { const v=el.value.trim(); go.href=v||'#'; go.classList.toggle('disabled',!v); }
+}
+function addLink() {
+  panelLinks.push({ name:'', url:'' });
+  renderPanelLinks();
+  setTimeout(() => {
+    const last = document.getElementById('ln-'+(panelLinks.length-1));
+    if (last) last.focus();
+  }, 0);
+}
+function delLink(i) { panelLinks.splice(i,1); renderPanelLinks(); }
+
+// ── Sincronización JSONBin ─────────────────────────────────────────
+
+function setSyncStatus(state, text) {
+  const badge = document.getElementById('sync-badge');
+  const txt = document.getElementById('sync-text');
+  if (!badge || !txt) return;
+  txt.textContent = text;
+  const icons = { loading: 'ti-loader', ok: 'ti-cloud-check', err: 'ti-cloud-off', local: 'ti-device-floppy' };
+  const icon = badge.querySelector('i');
+  if (icon) icon.className = 'ti ' + (icons[state] || 'ti-cloud');
+}
+
+async function initData() {
+  if (!JSONBIN_CONFIGURED) {
+    setSyncStatus('local', 'Bin no configurado — usando copia local');
+    renderTimeline();
+    return;
+  }
+  setSyncStatus('loading', 'Cargando datos…');
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const remote = json.record;
+    if (remote && Object.keys(remote).length) {
+      DATA = remote;
+      cacheData(DATA);
+      setSyncStatus('ok', 'Datos actualizados');
+    } else {
+      setSyncStatus('local', 'Bin vacío — pulsa "Sincronizar" para subir tu copia');
+    }
+  } catch (e) {
+    setSyncStatus('err', 'Sin conexión — usando última copia local');
+  }
+  renderTimeline();
+}
+
+async function syncToJsonBin() {
+  if (!JSONBIN_CONFIGURED) {
+    showToast('Falta configurar JSONBIN_BIN_ID en el código');
+    return;
+  }
+  let key = localStorage.getItem(LS_MASTERKEY);
+  if (!key) {
+    key = prompt('Introduce tu Master Key de JSONBin (se guarda solo en este navegador, se pide una única vez):');
+    if (!key) { showToast('Sincronización cancelada'); return; }
+    localStorage.setItem(LS_MASTERKEY, key);
+  }
+  setSyncStatus('loading', 'Guardando en la nube…');
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+      body: JSON.stringify(DATA)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    setSyncStatus('ok', 'Sincronizado ✓');
+    showToast('Sincronizado con JSONBin ✓');
+  } catch (e) {
+    setSyncStatus('err', 'Error al sincronizar (revisa la Master Key)');
+    localStorage.removeItem(LS_MASTERKEY);
+  }
+}
+
+// ── Save ─────────────────────────────────────────────────────────
+
+function savePanel() {
+  if (!activeId) return;
+  DATA[activeId] = {
+    steps: panelSteps.filter(s => s.trim()),
+    links: panelLinks.filter(l => l.url.trim() || l.name.trim())
+  };
+  cacheData(DATA);
+  closePanel();
+  showToast('Guardado ✓ — sincronizando…');
+  syncToJsonBin();
+}
+
+// ── Utils ────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePanel();
+});
+
+initData();
+</script>
+</body>
+</html>
