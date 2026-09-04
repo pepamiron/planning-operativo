@@ -688,7 +688,7 @@ function rebuildAreas() {
 // código fuente de la página.
 // ══════════════════════════════════════════════════════════════
 const JSONBIN_BIN_ID = '6a9a8c4dda38895dfe37a70d';
-const JSONBIN_MASTER_KEY = '$2a$10$GsW07ACS8sONiKeyJhB2N.AlnB2pIIHm.oooBdnE4MYUf18sG/zcy';
+const JSONBIN_MASTER_KEY = '$2a$10$3qWeWD5IOFOldcuBbPNXZu2z0wst60K0GiyjQuiTGVHoOI9efQlW6';
 const JSONBIN_CONFIGURED = !!JSONBIN_BIN_ID && !JSONBIN_BIN_ID.startsWith('PON_AQUI');
 
 // Copia de tus tareas actuales, recuperada de tu localStorage anterior.
@@ -1029,7 +1029,7 @@ function openPanel(id) {
 
   // Header
   document.getElementById('panel-title').textContent = task.title;
-  document.getElementById('panel-meta').textContent = task.areaLabel + ' · ' + task.week;
+  document.getElementById('panel-meta').textContent = task.eventual ? task.areaLabel : (task.areaLabel + ' · ' + task.week);
   const bar = document.getElementById('panel-bar');
   bar.className = 'panel-color-bar ' + task.areaColor;
   const saveBtn = document.getElementById('btn-save-panel');
