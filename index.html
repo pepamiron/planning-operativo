@@ -404,6 +404,25 @@ body {
 }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
 .modal-actions .btn-save-panel { flex: 1; }
+
+/* Tabs */
+.btn.active { background: var(--teal); color: #fff; border-color: var(--teal-dark); }
+.btn.active:hover { background: var(--teal); opacity: .92; }
+
+/* Task done check */
+.task-check {
+  color: var(--text-faint); cursor: pointer; padding: 2px;
+  border-radius: 4px; flex-shrink: 0; display: flex; align-items: center;
+}
+.task-check:hover { background: var(--surface2); }
+.task-check i { font-size: 17px; }
+.task-card.done { opacity: .55; }
+.task-card.done .task-title { text-decoration: line-through; }
+
+/* Puntual view */
+.eventual-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+.eventual-cards .task-card { width: 220px; margin-bottom: 0; }
+.eventual-empty { font-size: 12px; color: var(--text-faint); padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -422,13 +441,24 @@ body {
     </div>
   </div>
 
-  <div class="phase-legend">
+  <div class="phase-legend" style="margin-bottom:0;">
     <span class="phase-pill m2">◀ M-2 · 5 semanas</span>
     <span class="phase-pill m1">M-1 · 3 semanas ▶</span>
   </div>
 
-  <div class="timeline-wrap">
-    <div class="timeline" id="app"></div>
+  <div style="display:flex; gap:8px; margin:14px 0 18px;">
+    <button class="btn active" id="tab-rutinario" onclick="switchView('rutinario')"><i class="ti ti-calendar-week"></i>Rutinario</button>
+    <button class="btn" id="tab-puntual" onclick="switchView('puntual')"><i class="ti ti-list-details"></i>Puntual</button>
+  </div>
+
+  <div id="view-rutinario">
+    <div class="timeline-wrap">
+      <div class="timeline" id="app"></div>
+    </div>
+  </div>
+
+  <div id="view-puntual" style="display:none;">
+    <div id="eventual-app"></div>
   </div>
 </div>
 
@@ -480,13 +510,20 @@ body {
 <div class="modal-overlay" id="task-modal-overlay" onclick="closeTaskModal()"></div>
 <div class="task-modal" id="task-modal">
   <h3>Nueva tarea</h3>
+  <label for="tm-type">Tipo</label>
+  <select id="tm-type" onchange="onTaskTypeChange()">
+    <option value="rutinaria">Rutinaria (semanal)</option>
+    <option value="puntual">Puntual</option>
+  </select>
   <label for="tm-area">Grupo</label>
   <select id="tm-area">
     <option value="centros">Gestión Centros</option>
     <option value="oferta">Gestión Oferta</option>
   </select>
-  <label for="tm-week">Semana</label>
-  <select id="tm-week"></select>
+  <div id="tm-week-wrap">
+    <label for="tm-week">Semana</label>
+    <select id="tm-week"></select>
+  </div>
   <label for="tm-title">Título</label>
   <input id="tm-title" type="text" placeholder="Nombre de la tarea">
   <label for="tm-icon">Icono (opcional)</label>
@@ -625,6 +662,22 @@ function rebuildAreas() {
       TASK_MAP[t.id] = { ...t, areaColor: a.color, areaLabel: a.label.replace('\n',' ') };
     }));
   });
+
+  (EVENTUAL_TASKS || []).forEach(et => {
+    const area = AREAS.find(a => a.id === et.areaId);
+    if (!area) return;
+    TASK_MAP[et.id] = {
+      id: et.id,
+      title: et.title,
+      icon: et.icon || 'ti-list',
+      week: 'Puntual',
+      areaColor: area.color,
+      areaLabel: area.label.replace('\n',' '),
+      custom: true,
+      eventual: true,
+      done: !!et.done
+    };
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -745,23 +798,24 @@ function loadCachedRaw() {
 }
 
 // Acepta tanto el formato antiguo (objeto plano {taskId: {steps,links}})
-// como el nuevo ({data:{...}, customTasks:[...]})  — así los bins ya
-// existentes (formato antiguo) siguen funcionando sin migración manual.
+// como el nuevo ({data:{...}, customTasks:[...], eventualTasks:[...]}) —
+// así los bins ya existentes siguen funcionando sin migración manual.
 function normalizePayload(raw) {
-  if (raw && typeof raw === 'object' && ('data' in raw || 'customTasks' in raw)) {
-    return { data: raw.data || {}, customTasks: raw.customTasks || [] };
+  if (raw && typeof raw === 'object' && ('data' in raw || 'customTasks' in raw || 'eventualTasks' in raw)) {
+    return { data: raw.data || {}, customTasks: raw.customTasks || [], eventualTasks: raw.eventualTasks || [] };
   }
-  return { data: raw || {}, customTasks: [] };
+  return { data: raw || {}, customTasks: [], eventualTasks: [] };
 }
 
 function cachePayload() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS })); } catch {}
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS, eventualTasks: EVENTUAL_TASKS })); } catch {}
 }
 
 const _cached = normalizePayload(loadCachedRaw());
 const _hasCache = !!loadCachedRaw();
 let DATA = _hasCache ? _cached.data : INITIAL_DATA; // { [taskId]: { steps: [...], links: [{name,url},...] } }
 let CUSTOM_TASKS = _hasCache ? _cached.customTasks : [];
+let EVENTUAL_TASKS = _hasCache ? _cached.eventualTasks : [];
 
 function getTaskData(id) {
   return DATA[id] || { steps: [], links: [] };
@@ -770,17 +824,59 @@ function getTaskData(id) {
 let activeId = null;
 let panelSteps = [];
 let panelLinks = [];
+let currentView = 'rutinario';
 
 // ── Render timeline ─────────────────────────────────────────────
 
-function taskCardHTML(task, color) {
+function isTaskDoneNow(taskId, weekKey) {
+  const d = getTaskData(taskId);
+  if (!d.doneWeekStart) return false;
+  const w = WEEKS.find(x => x.key === weekKey);
+  if (!w) return false;
+  const cur = getSlotWeekStart(w);
+  if (!cur) return false;
+  return d.doneWeekStart === cur.toISOString().slice(0,10);
+}
+
+function toggleRoutineDone(taskId, weekKey, ev) {
+  ev.stopPropagation();
+  const w = WEEKS.find(x => x.key === weekKey);
+  const cur = w ? getSlotWeekStart(w) : null;
+  const key = cur ? cur.toISOString().slice(0,10) : null;
+  const d = DATA[taskId] || { steps: [], links: [] };
+  const wasDone = key && d.doneWeekStart === key;
+  d.doneWeekStart = (wasDone || !key) ? null : key;
+  DATA[taskId] = d;
+  cachePayload();
+  renderCurrentView();
+  syncToJsonBin();
+}
+
+function toggleEventualDone(id, ev) {
+  ev.stopPropagation();
+  const t = EVENTUAL_TASKS.find(x => x.id === id);
+  if (!t) return;
+  t.done = !t.done;
+  cachePayload();
+  rebuildAreas();
+  renderCurrentView();
+  syncToJsonBin();
+}
+
+function taskCardHTML(task, color, weekKey) {
   const d = getTaskData(task.id);
   const hasSteps = d.steps && d.steps.filter(s=>s.trim()).length > 0;
   const hasLinks = d.links && d.links.filter(l=>l.url.trim()).length > 0;
   const isActive = activeId === task.id;
+  const isDone = isTaskDoneNow(task.id, weekKey);
   return `
-    <div class="task-card ${color}${isActive?' active':''}" onclick="openPanel('${task.id}')" id="card-${task.id}">
-      <div class="task-title"><i class="ti ${task.icon}"></i>${task.title}</div>
+    <div class="task-card ${color}${isActive?' active':''}${isDone?' done':''}" onclick="openPanel('${task.id}')" id="card-${task.id}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:4px;">
+        <div class="task-title"><i class="ti ${task.icon}"></i>${task.title}</div>
+        <div class="task-check" onclick="toggleRoutineDone('${task.id}','${weekKey}', event)" title="Marcar como hecho esta semana">
+          <i class="ti ${isDone ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+        </div>
+      </div>
       <div class="card-meta">
         ${hasSteps ? `<span class="card-badge has-steps"><i class="ti ti-list-check"></i>${d.steps.filter(s=>s.trim()).length} pasos</span>` : ''}
         ${hasLinks ? `<span class="card-badge has-links"><i class="ti ti-link"></i>${d.links.filter(l=>l.url.trim()).length} enlaces</span>` : ''}
@@ -789,9 +885,22 @@ function taskCardHTML(task, color) {
     </div>`;
 }
 
-function cellHTML(tasks, color) {
+function cellHTML(tasks, color, weekKey) {
   if (!tasks || !tasks.length) return `<div class="cell-empty"></div>`;
-  return `<div>${tasks.map(t => taskCardHTML(t, color)).join('')}</div>`;
+  return `<div>${tasks.map(t => taskCardHTML(t, color, weekKey)).join('')}</div>`;
+}
+
+function renderCurrentView() {
+  if (currentView === 'puntual') renderEventualView(); else renderTimeline();
+}
+
+function switchView(view) {
+  currentView = view;
+  document.getElementById('tab-rutinario').classList.toggle('active', view === 'rutinario');
+  document.getElementById('tab-puntual').classList.toggle('active', view === 'puntual');
+  document.getElementById('view-rutinario').style.display = view === 'rutinario' ? '' : 'none';
+  document.getElementById('view-puntual').style.display = view === 'puntual' ? '' : 'none';
+  renderCurrentView();
 }
 
 function renderTimeline() {
@@ -813,8 +922,8 @@ function renderTimeline() {
   </div>`;
 
   const areaRows = AREAS.map((area,idx) => {
-    const cols5 = WEEKS.slice(0,5).map(w=>cellHTML(area.tasks[w.key],area.color)).join('');
-    const cols3 = WEEKS.slice(5).map(w=>cellHTML(area.tasks[w.key],area.color)).join('');
+    const cols5 = WEEKS.slice(0,5).map(w=>cellHTML(area.tasks[w.key],area.color,w.key)).join('');
+    const cols3 = WEEKS.slice(5).map(w=>cellHTML(area.tasks[w.key],area.color,w.key)).join('');
     const names = area.label.split('\n');
     const sep = idx < AREAS.length-1 ? `<div class="sep-row"></div>` : '';
     return `<div class="area-row">
@@ -831,12 +940,11 @@ function renderTimeline() {
   app.innerHTML = weeksRow + areaRows;
 }
 
-// Returns "2 jun" style short date range for a week slot, for current cycle
-function getWeekDateRange(w) {
-  // Use today's cycle: target month = current month + 2 for M-2, +1 for M-1
-  // We pick the first matching active cycle or default to current month + 2
+// Devuelve el lunes de inicio de la ocurrencia actual de este slot de semana
+// (misma ventana -7..60 días que se usa para la etiqueta de fecha), o null
+// si esa ocurrencia no cae cerca de hoy.
+function getSlotWeekStart(w) {
   const today = new Date();
-  // Find the target month where today falls in this week slot
   for (let delta = -1; delta <= 3; delta++) {
     const refDate = new Date(today.getFullYear(), today.getMonth() + delta + w.mOffset, 1);
     const rY = refDate.getFullYear();
@@ -848,16 +956,64 @@ function getWeekDateRange(w) {
     }
     if (w.weekIdx >= mondays.length) continue;
     const weekStart = mondays[w.weekIdx];
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    // Only show date range if it's the current or near-future week
     const diffDays = Math.round((weekStart - today) / 86400000);
-    if (diffDays >= -7 && diffDays <= 60) {
-      const fmt = d => `${d.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]}`;
-      return `${fmt(weekStart)}`;
-    }
+    if (diffDays >= -7 && diffDays <= 60) return weekStart;
   }
   return null;
+}
+
+// Returns "2 jun" style short date range for a week slot, for current cycle
+function getWeekDateRange(w) {
+  const start = getSlotWeekStart(w);
+  if (!start) return null;
+  const fmt = d => `${d.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]}`;
+  return fmt(start);
+}
+
+// ── Vista Puntual ────────────────────────────────────────────────
+
+function eventualCardHTML(t, color) {
+  const d = getTaskData(t.id);
+  const hasSteps = d.steps && d.steps.filter(s=>s.trim()).length > 0;
+  const hasLinks = d.links && d.links.filter(l=>l.url.trim()).length > 0;
+  const isActive = activeId === t.id;
+  return `
+    <div class="task-card ${color}${isActive?' active':''}${t.done?' done':''}" onclick="openPanel('${t.id}')" id="card-${t.id}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:4px;">
+        <div class="task-title"><i class="ti ${t.icon||'ti-list'}"></i>${t.title}</div>
+        <div class="task-check" onclick="toggleEventualDone('${t.id}', event)" title="Marcar como hecha">
+          <i class="ti ${t.done ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+        </div>
+      </div>
+      <div class="card-meta">
+        ${hasSteps ? `<span class="card-badge has-steps"><i class="ti ti-list-check"></i>${d.steps.filter(s=>s.trim()).length} pasos</span>` : ''}
+        ${hasLinks ? `<span class="card-badge has-links"><i class="ti ti-link"></i>${d.links.filter(l=>l.url.trim()).length} enlaces</span>` : ''}
+        ${!hasSteps && !hasLinks ? `<span class="card-badge"><i class="ti ti-click"></i>clic para editar</span>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderEventualView() {
+  const wrap = document.getElementById('eventual-app');
+  const html = AREAS.map((area, idx) => {
+    const tasks = (EVENTUAL_TASKS || []).filter(t => t.areaId === area.id);
+    const sorted = [...tasks].sort((a,b) => (a.done === b.done) ? 0 : (a.done ? 1 : -1));
+    const cardsHTML = sorted.length
+      ? `<div class="eventual-cards">${sorted.map(t => eventualCardHTML(t, area.color)).join('')}</div>`
+      : `<div class="eventual-empty">Sin tareas puntuales</div>`;
+    const names = area.label.split('\n');
+    const sep = idx < AREAS.length-1 ? `<div class="sep-row"></div>` : '';
+    return `<div class="area-row" style="grid-template-columns:130px 1fr;">
+      <div class="area-label">
+        <div class="area-dot-label">
+          <div class="area-dot dot-${area.color}"></div>
+          <span class="area-name">${names.join('<br>')}</span>
+        </div>
+      </div>
+      ${cardsHTML}
+    </div>${sep}`;
+  }).join('');
+  wrap.innerHTML = html;
 }
 
 // ── Panel ────────────────────────────────────────────────────────
@@ -886,7 +1042,7 @@ function openPanel(id) {
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
   document.getElementById('page').classList.add('panel-open');
-  renderTimeline();
+  renderCurrentView();
 }
 
 function closePanel() {
@@ -894,7 +1050,7 @@ function closePanel() {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
   document.getElementById('page').classList.remove('panel-open');
-  renderTimeline();
+  renderCurrentView();
 }
 
 // ── Steps ────────────────────────────────────────────────────────
@@ -1082,7 +1238,7 @@ async function initData() {
   if (!JSONBIN_CONFIGURED) {
     setSyncStatus('local', 'Bin no configurado — usando copia local');
     rebuildAreas();
-    renderTimeline();
+    switchView(currentView);
     return;
   }
   setSyncStatus('loading', 'Cargando datos…');
@@ -1091,10 +1247,11 @@ async function initData() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
     const norm = normalizePayload(json.record);
-    const hasContent = Object.keys(norm.data).length || norm.customTasks.length;
+    const hasContent = Object.keys(norm.data).length || norm.customTasks.length || norm.eventualTasks.length;
     if (hasContent) {
       DATA = norm.data;
       CUSTOM_TASKS = norm.customTasks;
+      EVENTUAL_TASKS = norm.eventualTasks;
       cachePayload();
       setSyncStatus('ok', 'Datos actualizados');
     } else {
@@ -1104,7 +1261,7 @@ async function initData() {
     setSyncStatus('err', 'Sin conexión — usando última copia local');
   }
   rebuildAreas();
-  renderTimeline();
+  switchView(currentView);
 }
 
 async function syncToJsonBin() {
@@ -1117,7 +1274,7 @@ async function syncToJsonBin() {
     const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY },
-      body: JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS })
+      body: JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS, eventualTasks: EVENTUAL_TASKS })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     setSyncStatus('ok', 'Sincronizado ✓');
@@ -1132,11 +1289,18 @@ async function syncToJsonBin() {
 function openTaskModal() {
   const sel = document.getElementById('tm-week');
   sel.innerHTML = WEEKS.map(w => `<option value="${w.key}">${w.fase} · ${w.label}</option>`).join('');
+  document.getElementById('tm-type').value = 'rutinaria';
   document.getElementById('tm-area').value = 'centros';
   document.getElementById('tm-title').value = '';
   document.getElementById('tm-icon').value = '';
+  onTaskTypeChange();
   document.getElementById('task-modal-overlay').classList.add('open');
   document.getElementById('task-modal').classList.add('open');
+}
+
+function onTaskTypeChange() {
+  const isPuntual = document.getElementById('tm-type').value === 'puntual';
+  document.getElementById('tm-week-wrap').style.display = isPuntual ? 'none' : '';
 }
 
 function closeTaskModal() {
@@ -1145,18 +1309,23 @@ function closeTaskModal() {
 }
 
 function createTask() {
+  const type = document.getElementById('tm-type').value;
   const areaId = document.getElementById('tm-area').value;
-  const weekKey = document.getElementById('tm-week').value;
   const title = document.getElementById('tm-title').value.trim();
   const icon = document.getElementById('tm-icon').value.trim() || 'ti-list';
   if (!title) { showToast('Ponle un título a la tarea'); return; }
 
   const id = 'custom_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  CUSTOM_TASKS.push({ id, areaId, weekKey, title, icon });
+  if (type === 'puntual') {
+    EVENTUAL_TASKS.push({ id, areaId, title, icon, done: false });
+  } else {
+    const weekKey = document.getElementById('tm-week').value;
+    CUSTOM_TASKS.push({ id, areaId, weekKey, title, icon });
+  }
   cachePayload();
   closeTaskModal();
   rebuildAreas();
-  renderTimeline();
+  renderCurrentView();
   showToast('Tarea creada ✓ — sincronizando…');
   syncToJsonBin();
 }
@@ -1165,11 +1334,11 @@ function deleteTask() {
   if (!activeId) return;
   if (!confirm('¿Eliminar esta tarea? No se puede deshacer.')) return;
   CUSTOM_TASKS = CUSTOM_TASKS.filter(ct => ct.id !== activeId);
+  EVENTUAL_TASKS = EVENTUAL_TASKS.filter(et => et.id !== activeId);
   delete DATA[activeId];
   cachePayload();
-  closePanel();
   rebuildAreas();
-  renderTimeline();
+  closePanel();
   showToast('Tarea eliminada ✓ — sincronizando…');
   syncToJsonBin();
 }
