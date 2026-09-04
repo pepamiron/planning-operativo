@@ -628,12 +628,14 @@ function rebuildAreas() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// CONFIGURACIÓN JSONBIN — instrucciones al final de este mensaje.
-// Pega aquí tu Bin ID una vez creado en jsonbin.io. La Master Key
-// NO se pega aquí: se pide una sola vez con un prompt() y se queda
-// guardada solo en el navegador de quien la introduzca.
+// CONFIGURACIÓN JSONBIN
+// Bin ID y Master Key fijados en el código para que la sincronización
+// sea automática (sin prompt). AVISO: esta página es pública en GitHub
+// Pages, así que la Master Key es visible para cualquiera que vea el
+// código fuente de la página.
 // ══════════════════════════════════════════════════════════════
 const JSONBIN_BIN_ID = '6a96a75ef5f4af5e295be1c3';
+const JSONBIN_MASTER_KEY = '$2a$10$GsW07ACS8sONiKeyJhB2N.AlnB2pIIHm.oooBdnE4MYUf18sG/zcy';
 const JSONBIN_CONFIGURED = !!JSONBIN_BIN_ID && !JSONBIN_BIN_ID.startsWith('PON_AQUI');
 
 // Copia de tus tareas actuales, recuperada de tu localStorage anterior.
@@ -737,7 +739,6 @@ const INITIAL_DATA = {
 };
 
 const LS_KEY = 'mco_planning_v2';
-const LS_MASTERKEY = 'mco_planning_jsonbin_masterkey';
 
 function loadCachedRaw() {
   try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
@@ -1111,25 +1112,18 @@ async function syncToJsonBin() {
     showToast('Falta configurar JSONBIN_BIN_ID en el código');
     return;
   }
-  let key = localStorage.getItem(LS_MASTERKEY);
-  if (!key) {
-    key = prompt('Introduce tu Master Key de JSONBin (se guarda solo en este navegador, se pide una única vez):');
-    if (!key) { showToast('Sincronización cancelada'); return; }
-    localStorage.setItem(LS_MASTERKEY, key);
-  }
   setSyncStatus('loading', 'Guardando en la nube…');
   try {
     const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY },
       body: JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     setSyncStatus('ok', 'Sincronizado ✓');
     showToast('Sincronizado con JSONBin ✓');
   } catch (e) {
-    setSyncStatus('err', 'Error al sincronizar (revisa la Master Key)');
-    localStorage.removeItem(LS_MASTERKEY);
+    setSyncStatus('err', 'Error al sincronizar');
   }
 }
 
