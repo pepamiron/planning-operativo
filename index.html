@@ -420,6 +420,8 @@ body {
 .task-card.done .task-title { text-decoration: line-through; }
 
 /* Puntual view */
+.task-del { cursor:pointer; color: var(--text-faint); font-size: 13px; line-height:1; padding:1px; border-radius:4px; }
+.task-del:hover { color:#c92a2a; background:rgba(201,42,42,.10); }
 .eventual-cards { display: flex; flex-wrap: wrap; gap: 8px; }
 .eventual-cards .task-card { width: 220px; margin-bottom: 0; }
 .eventual-empty { font-size: 12px; color: var(--text-faint); padding: 8px 0; }
@@ -441,7 +443,7 @@ body {
     </div>
   </div>
 
-  <div class="phase-legend" style="margin-bottom:0;">
+  <div class="phase-legend" id="phase-legend" style="margin-bottom:0;">
     <span class="phase-pill m2">◀ M-2 · 5 semanas</span>
     <span class="phase-pill m1">M-1 · 3 semanas ▶</span>
   </div>
@@ -873,8 +875,11 @@ function taskCardHTML(task, color, weekKey) {
     <div class="task-card ${color}${isActive?' active':''}${isDone?' done':''}" onclick="openPanel('${task.id}')" id="card-${task.id}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:4px;">
         <div class="task-title"><i class="ti ${task.icon}"></i>${task.title}</div>
-        <div class="task-check" onclick="toggleRoutineDone('${task.id}','${weekKey}', event)" title="Marcar como hecho esta semana">
-          <i class="ti ${isDone ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+        <div style="display:flex; align-items:center; gap:2px;">
+          <div class="task-check" onclick="toggleRoutineDone('${task.id}','${weekKey}', event)" title="Marcar como hecho esta semana">
+            <i class="ti ${isDone ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+          </div>
+          ${task.custom ? `<div class="task-del" onclick="deleteTaskById('${task.id}', event)" title="Eliminar tarea"><i class="ti ti-trash"></i></div>` : ''}
         </div>
       </div>
       <div class="card-meta">
@@ -900,6 +905,8 @@ function switchView(view) {
   document.getElementById('tab-puntual').classList.toggle('active', view === 'puntual');
   document.getElementById('view-rutinario').style.display = view === 'rutinario' ? '' : 'none';
   document.getElementById('view-puntual').style.display = view === 'puntual' ? '' : 'none';
+  const legend = document.getElementById('phase-legend');
+  if (legend) legend.style.display = view === 'puntual' ? 'none' : '';
   renderCurrentView();
 }
 
@@ -981,8 +988,13 @@ function eventualCardHTML(t, color) {
     <div class="task-card ${color}${isActive?' active':''}${t.done?' done':''}" onclick="openPanel('${t.id}')" id="card-${t.id}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:4px;">
         <div class="task-title"><i class="ti ${t.icon||'ti-list'}"></i>${t.title}</div>
-        <div class="task-check" onclick="toggleEventualDone('${t.id}', event)" title="Marcar como hecha">
-          <i class="ti ${t.done ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+        <div style="display:flex; align-items:center; gap:2px;">
+          <div class="task-check" onclick="toggleEventualDone('${t.id}', event)" title="Marcar como hecha">
+            <i class="ti ${t.done ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+          </div>
+          <div class="task-del" onclick="deleteTaskById('${t.id}', event)" title="Eliminar tarea">
+            <i class="ti ti-trash"></i>
+          </div>
         </div>
       </div>
       <div class="card-meta">
@@ -1243,8 +1255,14 @@ async function initData() {
   }
   setSyncStatus('loading', 'Cargando datos…');
   try {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
+    });
+    if (!res.ok) {
+      let detalle = '';
+      try { const j = await res.json(); detalle = j.message || JSON.stringify(j); } catch {}
+      throw new Error(`HTTP ${res.status}${detalle ? ' — ' + detalle : ''}`);
+    }
     const json = await res.json();
     const norm = normalizePayload(json.record);
     const hasContent = Object.keys(norm.data).length || norm.customTasks.length || norm.eventualTasks.length;
@@ -1258,7 +1276,8 @@ async function initData() {
       setSyncStatus('local', 'Bin vacío — pulsa "Sincronizar" para subir tu copia');
     }
   } catch (e) {
-    setSyncStatus('err', 'Sin conexión — usando última copia local');
+    console.error('[JSONBin] Error al cargar:', e);
+    setSyncStatus('err', 'Error al cargar: ' + e.message + ' — usando copia local');
   }
   rebuildAreas();
   switchView(currentView);
@@ -1276,11 +1295,17 @@ async function syncToJsonBin() {
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY },
       body: JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS, eventualTasks: EVENTUAL_TASKS })
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      let detalle = '';
+      try { const j = await res.json(); detalle = j.message || JSON.stringify(j); } catch {}
+      throw new Error(`HTTP ${res.status}${detalle ? ' — ' + detalle : ''}`);
+    }
     setSyncStatus('ok', 'Sincronizado ✓');
     showToast('Sincronizado con JSONBin ✓');
   } catch (e) {
-    setSyncStatus('err', 'Error al sincronizar');
+    console.error('[JSONBin] Error al sincronizar:', e);
+    setSyncStatus('err', 'Error al sincronizar: ' + e.message);
+    showToast('Error al sincronizar: ' + e.message);
   }
 }
 
@@ -1339,6 +1364,22 @@ function deleteTask() {
   cachePayload();
   rebuildAreas();
   closePanel();
+  showToast('Tarea eliminada ✓ — sincronizando…');
+  syncToJsonBin();
+}
+
+function deleteTaskById(id, ev) {
+  if (ev) ev.stopPropagation();
+  const t = TASK_MAP[id];
+  const name = t ? t.title : 'esta tarea';
+  if (!confirm(`¿Eliminar "${name}"? No se puede deshacer.`)) return;
+  CUSTOM_TASKS = CUSTOM_TASKS.filter(ct => ct.id !== id);
+  EVENTUAL_TASKS = EVENTUAL_TASKS.filter(et => et.id !== id);
+  delete DATA[id];
+  if (activeId === id) { closePanel(); }
+  cachePayload();
+  rebuildAreas();
+  renderCurrentView();
   showToast('Tarea eliminada ✓ — sincronizando…');
   syncToJsonBin();
 }
