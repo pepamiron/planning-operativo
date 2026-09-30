@@ -453,7 +453,17 @@ body {
   background: var(--surface); border: 0.5px solid var(--border);
   border-radius: var(--radius-lg); padding: 14px 16px;
   width: 250px; display: flex; flex-direction: column; gap: 10px;
+  position: relative; cursor: grab;
+  transition: box-shadow .15s ease, border-color .15s ease, opacity .15s ease;
 }
+.link-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); border-color: var(--border-strong); }
+.link-card.dragging { opacity: .4; cursor: grabbing; }
+.link-card.drop-target { border-color: var(--blue-dark); border-style: dashed; }
+.link-card-drag {
+  position: absolute; top: 8px; left: 6px; color: var(--text-faint);
+  font-size: 14px; opacity: 0; transition: opacity .15s ease; pointer-events: none;
+}
+.link-card:hover .link-card-drag { opacity: .6; }
 .link-card-name {
   font-size: 13px; font-weight: 600; line-height: 1.35;
   display: flex; align-items: flex-start; gap: 7px;
@@ -464,7 +474,7 @@ body {
   width: 20px; height: 20px; border-radius: 5px; object-fit: cover;
   flex-shrink: 0; margin-top: 1px; border: 0.5px solid var(--border);
 }
-.link-card-actions { display: flex; gap: 6px; margin-top: auto; }
+.link-card-actions { display: flex; gap: 6px; margin-top: auto; align-items: center; }
 .link-card-open {
   flex: 1; text-align: center; font-size: 12px; padding: 7px;
   border-radius: 6px; background: var(--blue-light); color: var(--blue-dark);
@@ -472,12 +482,25 @@ body {
   font-weight: 500;
 }
 .link-card-open:hover { background: var(--blue-border); }
+.link-card-hover-actions {
+  display: flex; gap: 6px;
+  opacity: 0; width: 0; overflow: hidden;
+  transition: opacity .15s ease, width .15s ease;
+}
+.link-card:hover .link-card-hover-actions,
+.link-card:focus-within .link-card-hover-actions { opacity: 1; width: auto; }
 .link-card-icon-btn {
   background: transparent; border: 0.5px solid var(--border-strong);
   border-radius: 6px; padding: 6px 9px; cursor: pointer;
   color: var(--text-muted); display: flex; align-items: center;
+  flex-shrink: 0;
 }
 .link-card-icon-btn:hover { background: var(--surface2); }
+.link-card-icon-btn.danger:hover { background: rgba(201,42,42,.10); color: #c92a2a; border-color: #c92a2a; }
+@media (hover: none) {
+  .link-card-hover-actions { opacity: 1; width: auto; }
+  .link-card-drag { opacity: .6; }
+}
 </style>
 </head>
 <body>
@@ -1212,20 +1235,70 @@ function renderEnlacesView() {
     wrap.innerHTML = `<p class="eventual-empty">Sin enlaces todavía. Pulsa "+ Nuevo enlace" para añadir el primero.</p>`;
     return;
   }
-  wrap.innerHTML = `<div class="links-grid">${QUICK_LINKS.map(l => {
+  wrap.innerHTML = `<div class="links-grid" id="links-grid">${QUICK_LINKS.map((l, idx) => {
     const iconHTML = l.icon
       ? `<img src="${l.icon}" class="link-card-icon-img" alt="">`
       : `<i class="ti ti-link"></i>`;
     return `
-    <div class="link-card">
+    <div class="link-card" draggable="true" data-link-id="${l.id}" data-idx="${idx}"
+         ondragstart="onLinkDragStart(event, ${idx})"
+         ondragover="onLinkDragOver(event, ${idx})"
+         ondragleave="onLinkDragLeave(event)"
+         ondrop="onLinkDrop(event, ${idx})"
+         ondragend="onLinkDragEnd(event)">
+      <i class="ti ti-grip-vertical link-card-drag"></i>
       <div class="link-card-name">${iconHTML}${escHtml(l.name)}</div>
       <div class="link-card-actions">
-        <a class="link-card-open" href="${escAttr(l.url)}" target="_blank" rel="noopener"><i class="ti ti-external-link"></i>Abrir</a>
-        <button class="link-card-icon-btn" onclick="openLinkModal('${l.id}')" title="Editar"><i class="ti ti-pencil"></i></button>
-        <button class="link-card-icon-btn" onclick="deleteLink('${l.id}', event)" title="Eliminar"><i class="ti ti-trash"></i></button>
+        <a class="link-card-open" href="${escAttr(l.url)}" target="_blank" rel="noopener" draggable="false"><i class="ti ti-external-link"></i>Abrir</a>
+        <div class="link-card-hover-actions">
+          <button class="link-card-icon-btn" onclick="openLinkModal('${l.id}')" title="Editar"><i class="ti ti-pencil"></i></button>
+          <button class="link-card-icon-btn danger" onclick="deleteLink('${l.id}', event)" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div>
       </div>
     </div>`;
   }).join('')}</div>`;
+}
+
+// ── Reordenar apps (arrastrar y soltar) ──────────────────────────
+let dragLinkIdx = null;
+
+function onLinkDragStart(ev, idx) {
+  dragLinkIdx = idx;
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(idx)); } catch (e) {}
+  ev.currentTarget.classList.add('dragging');
+}
+
+function onLinkDragOver(ev, idx) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  if (dragLinkIdx !== null && dragLinkIdx !== idx) {
+    ev.currentTarget.classList.add('drop-target');
+  }
+}
+
+function onLinkDragLeave(ev) {
+  ev.currentTarget.classList.remove('drop-target');
+}
+
+function onLinkDrop(ev, idx) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drop-target');
+  if (dragLinkIdx === null || dragLinkIdx === idx) return;
+  const moved = QUICK_LINKS.splice(dragLinkIdx, 1)[0];
+  QUICK_LINKS.splice(idx, 0, moved);
+  dragLinkIdx = null;
+  cachePayload();
+  renderCurrentView();
+  showToast('Orden actualizado ✓ — sincronizando…');
+  syncToJsonBin();
+}
+
+function onLinkDragEnd(ev) {
+  dragLinkIdx = null;
+  document.querySelectorAll('.link-card').forEach(c => {
+    c.classList.remove('dragging', 'drop-target');
+  });
 }
 
 // ── Panel ────────────────────────────────────────────────────────
