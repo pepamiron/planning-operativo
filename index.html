@@ -161,6 +161,12 @@ body {
 .card-badge i { font-size: 11px; }
 .card-badge.has-steps { color: var(--teal-dark); border-color: var(--teal-border); background: var(--teal-light); }
 .card-badge.has-links { color: var(--blue-dark); border-color: var(--blue-border); background: var(--blue-light); }
+.card-fase {
+  font-size: 9px; font-weight: 600; letter-spacing: .3px;
+  padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
+  border: 0.5px solid var(--m2-border); background: var(--m2-bg); color: var(--m2-text);
+}
+.card-fase.m1 { border-color: var(--m1-border); background: var(--m1-bg); color: var(--m1-text); }
 
 /* ── Side panel ── */
 .panel-overlay {
@@ -648,7 +654,10 @@ const WEEKS = [
   {key:'s2m2',label:'Sem 2',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:1},
   {key:'s3m2',label:'Sem 3',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:2},
   {key:'s4m2',label:'Sem 4',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:3},
-  {key:'s5m2',label:'Sem 5',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:4},
+  // Semana en la que cae el día 1. Aquí conviven tareas con distinto mes
+  // objetivo (unas trabajan a 2 meses y otras a 1), así que la fase NO va en
+  // la columna sino en cada tarjeta, con su propiedad fase.
+  {key:'s5m2',label:'Sem 5',fase:'',cls:'m2', mOffset:-2, weekIdx:4, day1:true, day1Offset:1},
   {key:'s1m1',label:'Sem 1',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:0},
   {key:'s2m1',label:'Sem 2',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:1},
   {key:'s3m1',label:'Sem 3',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:2},
@@ -661,6 +670,26 @@ function nthMonday(year, month, n) {
   const daysToMon = dow === 1 ? 0 : (8 - dow) % 7;
   d.setDate(1 + daysToMon + n * 7);
   return d;
+}
+
+// Devuelve el lunes que le corresponde a un slot dentro del mes (rY, rM).
+//  - day1:true → lunes de la semana que CONTIENE el día 1 de un mes, elegido
+//                con day1Offset (0 = el propio rM, 1 = el mes siguiente).
+//                Esa semana siempre existe, así que la tarea nunca desaparece.
+//  - resto     → el lunes de su índice, o null si ese índice no existe.
+function slotMonday(rY, rM, w) {
+  if (w.day1) {
+    const d1 = new Date(rY, rM + (w.day1Offset || 0), 1);
+    const back = (d1.getDay() + 6) % 7;
+    d1.setDate(d1.getDate() - back);
+    return d1;
+  }
+  const mondays = [];
+  for (let i = 0; i < 6; i++) {
+    const m = nthMonday(rY, rM, i);
+    if (m.getMonth() === rM) mondays.push(m);
+  }
+  return w.weekIdx < mondays.length ? mondays[w.weekIdx] : null;
 }
 
 // Returns set of week-keys that should be highlighted right now
@@ -693,14 +722,8 @@ function getActiveWeekKeys() {
       const rY = refDate.getFullYear();
       const rM = refDate.getMonth();
 
-      const mondays = [];
-      for (let i = 0; i < 6; i++) {
-        const m = nthMonday(rY, rM, i);
-        if (m.getMonth() === rM) mondays.push(m);
-      }
-
-      if (w.weekIdx >= mondays.length) return;
-      const weekStart = mondays[w.weekIdx];
+      const weekStart = slotMonday(rY, rM, w);
+      if (!weekStart) return;
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
 
@@ -720,18 +743,18 @@ const BASE_AREAS = [
   {
     id:'centros', label:'Gestión\nCentros', color:'teal',
     tasks:{
-      s1m2:[{id:'qcc',   title:'Crear QCC',                   icon:'ti-file-plus',  week:'Sem 1 · M-2'}],
       s3m2:[{id:'nsd',   title:'Analizar NSD',                icon:'ti-chart-line', week:'Sem 3 · M-2'},
             {id:'cmo',   title:'Curar Centros MO',            icon:'ti-building-store',week:'Sem 3 · M-2'}],
       s4m2:[{id:'cdm',   title:'Informar Cambios CdM',        icon:'ti-mail',       week:'Sem 4 · M-2'}],
-      s5m2:[{id:'bote',  title:'Curar Bote Centros',          icon:'ti-checklist',  week:'Sem 5 · M-2'}],
+      s5m2:[{id:'qcc',   title:'Crear QCC',                   icon:'ti-file-plus',  week:'Sem día 1 · M-2', fase:'M-2'},
+            {id:'bote',  title:'Curar Bote Centros',          icon:'ti-checklist',  week:'Sem día 1 · M-1', fase:'M-1'}],
       s1m1:[{id:'ccpp',  title:'Mandar Correo Cambios CCPP',  icon:'ti-send',       week:'Sem 1 · M-1'}],
     }
   },
   {
     id:'oferta', label:'Gestión\nOferta', color:'blue',
     tasks:{
-      s5m2:[{id:'propventa',title:'Validar Propuesta Venta',  icon:'ti-circle-check',week:'Sem 5 · M-2'}],
+      s5m2:[{id:'propventa',title:'Validar Propuesta Venta',  icon:'ti-circle-check',week:'Sem día 1 · M-1', fase:'M-1'}],
       s1m1:[{id:'planif',   title:'Enviar Planificaciones',   icon:'ti-send',       week:'Sem 1 · M-1'}],
     }
   }
@@ -984,8 +1007,11 @@ function taskCardHTML(task, color, weekKey) {
     <div class="task-card ${color}${isActive?' active':''}${isDone?' done':''}" onclick="openPanel('${task.id}')" id="card-${task.id}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:4px;">
         <div class="task-title"><i class="ti ${task.icon}"></i>${task.title}</div>
-        <div class="task-check" onclick="toggleRoutineDone('${task.id}','${weekKey}', event)" title="Marcar como hecho esta semana">
-          <i class="ti ${isDone ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+        <div style="display:flex; align-items:center; gap:4px;">
+          ${task.fase ? `<span class="card-fase ${task.fase === 'M-1' ? 'm1' : 'm2'}" title="Se trabaja con esta antelación">${task.fase}</span>` : ''}
+          <div class="task-check" onclick="toggleRoutineDone('${task.id}','${weekKey}', event)" title="Marcar como hecho esta semana">
+            <i class="ti ${isDone ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
+          </div>
         </div>
       </div>
       <div class="card-meta">
@@ -1023,7 +1049,8 @@ function renderTimeline() {
     const isCurrent = ACTIVE_WEEK_KEYS.has(w.key);
     const cls = isCurrent ? `week-cell ${w.cls} current` : `week-cell ${w.cls}`;
     const dateRange = getWeekDateRange(w);
-    return `<div class="${cls}">${w.label}${dateRange ? `<span class="fase-tag">${w.fase} · ${dateRange}</span>` : `<span class="fase-tag">${w.fase}</span>`}</div>`;
+    const sub = [w.fase, dateRange].filter(Boolean).join(' · ');
+    return `<div class="${cls}">${w.label}${sub ? `<span class="fase-tag">${sub}</span>` : ''}</div>`;
   }
 
   const w5 = WEEKS.slice(0,5).map(weekCellHTML).join('');
@@ -1062,13 +1089,8 @@ function getSlotWeekStart(w) {
     const refDate = new Date(today.getFullYear(), today.getMonth() + delta + w.mOffset, 1);
     const rY = refDate.getFullYear();
     const rM = refDate.getMonth();
-    const mondays = [];
-    for (let i = 0; i < 6; i++) {
-      const m = nthMonday(rY, rM, i);
-      if (m.getMonth() === rM) mondays.push(m);
-    }
-    if (w.weekIdx >= mondays.length) continue;
-    const weekStart = mondays[w.weekIdx];
+    const weekStart = slotMonday(rY, rM, w);
+    if (!weekStart) continue;
     const diffDays = Math.round((weekStart - today) / 86400000);
     if (diffDays >= -7 && diffDays <= 60) return weekStart;
   }
