@@ -648,10 +648,7 @@ const WEEKS = [
   {key:'s2m2',label:'Sem 2',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:1},
   {key:'s3m2',label:'Sem 3',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:2},
   {key:'s4m2',label:'Sem 4',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:3},
-  // day1:true → este slot es "la semana en la que cae el día 1", es decir la
-  // semana en la que se gestionan las tareas del mes objetivo del ciclo.
-  // Cualquier tarea que se coloque aquí hereda la regla automáticamente.
-  {key:'s5m2',label:'Sem 5',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:4, day1:true},
+  {key:'s5m2',label:'Sem 5',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:4},
   {key:'s1m1',label:'Sem 1',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:0},
   {key:'s2m1',label:'Sem 2',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:1},
   {key:'s3m1',label:'Sem 3',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:2},
@@ -664,29 +661,6 @@ function nthMonday(year, month, n) {
   const daysToMon = dow === 1 ? 0 : (8 - dow) % 7;
   d.setDate(1 + daysToMon + n * 7);
   return d;
-}
-
-// Devuelve el lunes que le corresponde a un slot dentro del mes (rY, rM).
-//  - day1:true → lunes de la semana que CONTIENE el día 1 del mes siguiente.
-//                Es la semana en la que se gestiona el mes objetivo del ciclo.
-//                Siempre existe, y suele ser la última del mes (4ª o 5ª); si el
-//                día 1 cae en lunes, es la primera semana del mes siguiente.
-//  - last:true  → último lunes del mes (4º o 5º).
-//  - resto      → el lunes de su índice, o null si ese índice no existe.
-function slotMonday(rY, rM, w) {
-  if (w.day1) {
-    const d1 = new Date(rY, rM + 1, 1);
-    const back = (d1.getDay() + 6) % 7;
-    d1.setDate(d1.getDate() - back);
-    return d1;
-  }
-  const mondays = [];
-  for (let i = 0; i < 6; i++) {
-    const m = nthMonday(rY, rM, i);
-    if (m.getMonth() === rM) mondays.push(m);
-  }
-  if (w.last) return mondays.length ? mondays[mondays.length - 1] : null;
-  return w.weekIdx < mondays.length ? mondays[w.weekIdx] : null;
 }
 
 // Returns set of week-keys that should be highlighted right now
@@ -719,8 +693,14 @@ function getActiveWeekKeys() {
       const rY = refDate.getFullYear();
       const rM = refDate.getMonth();
 
-      const weekStart = slotMonday(rY, rM, w);
-      if (!weekStart) return;
+      const mondays = [];
+      for (let i = 0; i < 6; i++) {
+        const m = nthMonday(rY, rM, i);
+        if (m.getMonth() === rM) mondays.push(m);
+      }
+
+      if (w.weekIdx >= mondays.length) return;
+      const weekStart = mondays[w.weekIdx];
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
 
@@ -740,11 +720,11 @@ const BASE_AREAS = [
   {
     id:'centros', label:'Gestión\nCentros', color:'teal',
     tasks:{
+      s1m2:[{id:'qcc',   title:'Crear QCC',                   icon:'ti-file-plus',  week:'Sem 1 · M-2'}],
       s3m2:[{id:'nsd',   title:'Analizar NSD',                icon:'ti-chart-line', week:'Sem 3 · M-2'},
             {id:'cmo',   title:'Curar Centros MO',            icon:'ti-building-store',week:'Sem 3 · M-2'}],
       s4m2:[{id:'cdm',   title:'Informar Cambios CdM',        icon:'ti-mail',       week:'Sem 4 · M-2'}],
-      s5m2:[{id:'qcc',   title:'Crear QCC',                   icon:'ti-file-plus',  week:'Sem 5 · M-2'},
-            {id:'bote',  title:'Curar Bote Centros',          icon:'ti-checklist',  week:'Sem 5 · M-2'}],
+      s5m2:[{id:'bote',  title:'Curar Bote Centros',          icon:'ti-checklist',  week:'Sem 5 · M-2'}],
       s1m1:[{id:'ccpp',  title:'Mandar Correo Cambios CCPP',  icon:'ti-send',       week:'Sem 1 · M-1'}],
     }
   },
@@ -1082,8 +1062,13 @@ function getSlotWeekStart(w) {
     const refDate = new Date(today.getFullYear(), today.getMonth() + delta + w.mOffset, 1);
     const rY = refDate.getFullYear();
     const rM = refDate.getMonth();
-    const weekStart = slotMonday(rY, rM, w);
-    if (!weekStart) continue;
+    const mondays = [];
+    for (let i = 0; i < 6; i++) {
+      const m = nthMonday(rY, rM, i);
+      if (m.getMonth() === rM) mondays.push(m);
+    }
+    if (w.weekIdx >= mondays.length) continue;
+    const weekStart = mondays[w.weekIdx];
     const diffDays = Math.round((weekStart - today) / 86400000);
     if (diffDays >= -7 && diffDays <= 60) return weekStart;
   }
