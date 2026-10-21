@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning por fechas — Mercadona Online</title>
+<title>Planning Operativo — Mercadona Online</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 :root {
@@ -24,9 +24,9 @@
   --blue-border: #B5D4F4;
   --blue-dark: #185FA5;
   /* Antelación: con cuántos meses de adelanto se trabaja */
-  --a2-bg: #fffef5; --a2-border: #e8e0a0; --a2-text: #6b5e00;
-  --a1-bg: #f5f8ff; --a1-border: #b5c8f4; --a1-text: #185FA5;
-  --ev-bg: #faf5ff; --ev-border: #d9c2f0; --ev-text: #6b3fa0;
+  --a2-bg: #FFF3DF; --a2-border: #DE9C32; --a2-text: #7A4D04;
+  --a1-bg: #EBEDFB; --a1-border: #6A74D4; --a1-text: #2D3583;
+  --ev-bg: #FCE9F1; --ev-border: #D3689E; --ev-text: #8A2A59;
   --radius: 8px; --radius-lg: 12px;
   --panel-w: 520px;
 }
@@ -131,10 +131,10 @@ h1 i { color: var(--teal); font-size: 20px; }
 .cal-title { font-size: 15px; font-weight: 600; min-width: 170px; }
 .legend { display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; }
 .legend span { font-size: 11.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 5px; }
-.legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; border: 0.5px solid; }
-.lg-a2 { background: var(--a2-bg); border-color: var(--a2-border); }
-.lg-a1 { background: var(--a1-bg); border-color: var(--a1-border); }
-.lg-ev { background: var(--ev-bg); border-color: var(--ev-border); }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 0.5px solid; }
+.lg-a2 { background: #F2D09A; border-color: var(--a2-border); }
+.lg-a1 { background: #B7BDEB; border-color: var(--a1-border); }
+.lg-ev { background: #ECB5D0; border-color: var(--ev-border); }
 
 .month {
   background: var(--surface); border: 0.5px solid var(--border);
@@ -207,6 +207,30 @@ h1 i { color: var(--teal); font-size: 20px; }
 .year-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 12px; }
 .year-grid .month { margin-bottom: 0; }
 .year-grid .scale { min-width: 0; }
+
+/* Flujo mensual */
+.flujo-mes-head {
+  font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  text-transform: lowercase; padding: 14px 0 6px; border-bottom: 0.5px solid var(--border);
+  margin-bottom: 4px;
+}
+.flujo-mes-head:first-of-type { padding-top: 4px; }
+.flujo-row {
+  display: flex; align-items: center; gap: 9px; padding: 8px 6px;
+  border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.flujo-row:hover { background: var(--surface2); }
+.flujo-fecha {
+  font-size: 12px; color: var(--text-muted); width: 92px; flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.flujo-row i.ti { font-size: 14px; color: var(--text-muted); flex-shrink: 0; }
+.flujo-nombre { flex: 1; font-weight: 500; }
+.flujo-estado { font-size: 11.5px; color: var(--text-faint); flex-shrink: 0; }
+.flujo-row.pasado { opacity: .55; }
+.flujo-row.pasado .flujo-nombre { text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.flujo-row.curso { background: var(--teal-light); }
+.flujo-row.curso .flujo-estado { color: var(--teal-dark); font-weight: 600; }
 
 /* Vista de año por trimestres: tres meses por fila, cuatro filas */
 .trimestre {
@@ -405,7 +429,7 @@ textarea { resize: vertical; min-height: 58px; }
 <div class="wrap">
   <div class="head">
     <div>
-      <h1><i class="ti ti-calendar-month"></i>Planning por fechas — Mercadona Online</h1>
+      <h1><i class="ti ti-calendar-month"></i>Planning Operativo — Mercadona Online</h1>
       <p class="sub">Define cada tarea una vez en el catálogo y dale su rango de días. El calendario la repite cada mes.</p>
     </div>
     <div class="head-actions">
@@ -416,6 +440,7 @@ textarea { resize: vertical; min-height: 58px; }
 
   <div class="tabs">
     <button class="tab active" id="tab-calendario" onclick="switchView('calendario')"><i class="ti ti-calendar"></i>Calendario</button>
+    <button class="tab" id="tab-flujo" onclick="switchView('flujo')"><i class="ti ti-route"></i>Flujo mensual</button>
     <button class="tab" id="tab-catalogo" onclick="switchView('catalogo')"><i class="ti ti-list-details"></i>Catálogo</button>
     <button class="tab" id="tab-apps" onclick="switchView('apps')"><i class="ti ti-link"></i>Apps</button>
   </div>
@@ -441,6 +466,20 @@ textarea { resize: vertical; min-height: 58px; }
       </div>
     </div>
     <div id="cal-body"></div>
+  </div>
+
+  <div id="view-flujo" style="display:none;">
+    <div class="cal-bar">
+      <span style="font-size:13px; color:var(--text-muted);">Para que quede operativo</span>
+      <button class="btn" onclick="flujoStep(-1)" title="Mes anterior"><i class="ti ti-chevron-left"></i></button>
+      <select id="flujo-mes" class="btn" onchange="renderFlujo()" style="padding:6px 10px;"></select>
+      <button class="btn" onclick="flujoStep(1)" title="Mes siguiente"><i class="ti ti-chevron-right"></i></button>
+      <div class="legend">
+        <span><i class="lg-a2"></i>2 meses antes</span>
+        <span><i class="lg-a1"></i>1 mes antes</span>
+      </div>
+    </div>
+    <div id="flujo-body"></div>
   </div>
 
   <div id="view-apps" style="display:none;">
@@ -1016,6 +1055,112 @@ function renderCalendario() {
   body.innerHTML = monthWeeksHTML(y, m);
 }
 
+// ══════════════════════════════════════════════════════════════
+// FLUJO MENSUAL
+// Al revés que el calendario: se elige el mes que tiene que quedar
+// operativo y se listan las acciones previas con sus fechas reales,
+// retrocediendo tantos meses como diga la antelación de cada tarea.
+// ══════════════════════════════════════════════════════════════
+let flujoRef = new Date();
+flujoRef.setDate(1);
+flujoRef.setMonth(flujoRef.getMonth() + 1);   // por defecto, el mes siguiente
+
+function flujoItems(year, month) {
+  const out = [];
+  TASKS.forEach(t => {
+    const s = t.sched;
+    if (!s || s.tipo !== 'mensual') return;   // las anuales no sirven a un mes concreto
+    const n = Number(s.offset) || 0;
+    const ref = new Date(year, month - n, 1);
+    const wy = ref.getFullYear(), wm = ref.getMonth();
+    const total = daysInMonth(wy, wm);
+    const from = Math.min(Math.max(1, Number(s.dayFrom) || 1), total);
+    const to = Math.min(Math.max(from, Number(s.dayTo) || from), total);
+    out.push({
+      task: t, sched: s, wy, wm, from, to,
+      ini: new Date(wy, wm, from), fin: new Date(wy, wm, to)
+    });
+  });
+  out.sort((a, b) => a.ini - b.ini);
+  return out;
+}
+
+function rellenarSelectorFlujo() {
+  const sel = document.getElementById('flujo-mes');
+  if (!sel) return;
+  const base = new Date();
+  base.setDate(1);
+  let html = '';
+  for (let i = -6; i <= 18; i++) {           // dos años de margen alrededor de hoy
+    const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
+    const v = `${d.getFullYear()}-${d.getMonth()}`;
+    html += `<option value="${v}">${MESES[d.getMonth()]} ${d.getFullYear()}</option>`;
+  }
+  sel.innerHTML = html;
+  sel.value = `${flujoRef.getFullYear()}-${flujoRef.getMonth()}`;
+}
+
+function flujoStep(dir) {
+  flujoRef.setMonth(flujoRef.getMonth() + dir);
+  rellenarSelectorFlujo();
+  renderFlujo();
+}
+
+function renderFlujo() {
+  const sel = document.getElementById('flujo-mes');
+  const body = document.getElementById('flujo-body');
+  if (!sel || !body) return;
+
+  const [sy, sm] = sel.value.split('-').map(Number);
+  if (!isNaN(sy)) flujoRef = new Date(sy, sm, 1);
+  const year = flujoRef.getFullYear(), month = flujoRef.getMonth();
+
+  const items = flujoItems(year, month);
+  if (!items.length) {
+    body.innerHTML = `<div class="cal-empty"><strong>No hay acciones para este mes</strong>
+      Solo aparecen las tareas que se repiten todos los meses y tienen antelación.</div>`;
+    return;
+  }
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  // Agrupadas por el mes en el que se trabajan
+  let html = '';
+  let mesActual = null;
+  items.forEach(it => {
+    const clave = it.wy + '-' + it.wm;
+    if (clave !== mesActual) {
+      mesActual = clave;
+      html += `<div class="flujo-mes-head">${MESES[it.wm]} ${it.wy}</div>`;
+    }
+    const area = AREAS.find(a => a.id === it.task.areaId);
+    const estado = it.fin < hoy ? 'pasado' : (it.ini > hoy ? 'futuro' : 'curso');
+    const txtEstado = estado === 'pasado' ? 'Ya pasó' : (estado === 'curso' ? 'En plazo ahora' : 'Pendiente');
+    const rango = it.from === it.to
+      ? `${it.from} ${MES_CORTO[it.wm]}`
+      : `${it.from}–${it.to} ${MES_CORTO[it.wm]}`;
+    const n = Number(it.sched.offset) || 0;
+    html += `
+      <div class="flujo-row ${estado}" onclick="openPanel('${it.task.id}')">
+        <span class="flujo-fecha">${rango}</span>
+        <span class="area-dot ${area ? area.color : 'teal'}"></span>
+        <i class="ti ${esc(it.task.icon)}"></i>
+        <span class="bar-txt flujo-nombre">${esc(it.task.title)}</span>
+        <span class="tag-ant ${n >= 2 ? '' : 'a1'}">${n === 0 ? 'Mismo mes' : 'M-' + n}</span>
+        <span class="flujo-estado">${txtEstado}</span>
+      </div>`;
+  });
+
+  body.innerHTML = `
+    <div class="month">
+      <div class="month-name">Para tener operativo ${MESES[month]} ${year}
+        <span class="n-tasks">${items.length} ${items.length === 1 ? 'acción' : 'acciones'}</span>
+      </div>
+      ${html}
+    </div>`;
+}
+
 // ── Vista de año: matriz de tareas por meses ─────────────────────
 // Una fila por tarea y doce columnas de mes. El nombre se lee una sola vez,
 // así que nunca se corta, y cada celda sitúa la tarea dentro de su mes:
@@ -1373,7 +1518,7 @@ function onLinkDragEnd(ev) {
 // ══════════════════════════════════════════════════════════════
 function switchView(v) {
   currentView = v;
-  ['catalogo','calendario','apps'].forEach(k => {
+  ['catalogo','calendario','flujo','apps'].forEach(k => {
     document.getElementById('tab-' + k).classList.toggle('active', k === v);
     document.getElementById('view-' + k).style.display = k === v ? '' : 'none';
   });
@@ -1383,6 +1528,7 @@ function render() {
   rebuildMap();
   aplicarAncho();
   if (currentView === 'catalogo') renderCatalogo();
+  else if (currentView === 'flujo') { rellenarSelectorFlujo(); renderFlujo(); }
   else if (currentView === 'apps') renderApps();
   else renderCalendario();
 }
