@@ -3,11 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Operativo — Mercadona Online</title>
+<title>Planning por fechas — Mercadona Online</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 :root {
   --bg: #f8f8f6;
   --surface: #ffffff;
@@ -25,435 +23,235 @@
   --blue-light: #E6F1FB;
   --blue-border: #B5D4F4;
   --blue-dark: #185FA5;
-  --m2-bg: #fffef5; --m2-border: #e8e0a0; --m2-text: #6b5e00;
-  --m1-bg: #f5f8ff; --m1-border: #b5c8f4; --m1-text: #185FA5;
+  /* Antelación: con cuántos meses de adelanto se trabaja */
+  --a2-bg: #fffef5; --a2-border: #e8e0a0; --a2-text: #6b5e00;
+  --a1-bg: #f5f8ff; --a1-border: #b5c8f4; --a1-text: #185FA5;
+  --ev-bg: #faf5ff; --ev-border: #d9c2f0; --ev-text: #6b3fa0;
   --radius: 8px; --radius-lg: 12px;
   --panel-w: 520px;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1a1a18; --surface: #242422; --surface2: #2e2e2b;
-    --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.22);
-    --text: #f0f0ec; --text-muted: #9a9a94; --text-faint: #666660;
-    --teal-light: #04342C; --teal-border: #085041; --teal-dark: #5DCAA5;
-    --blue-light: #042C53; --blue-border: #0C447C; --blue-dark: #85B7EB;
-    --m2-bg: #2a2700; --m2-border: #5a5000; --m2-text: #d4c040;
-    --m1-bg: #001a3a; --m1-border: #0C447C; --m1-text: #85B7EB;
-  }
-}
-
+* { box-sizing: border-box; }
 body {
-  background: var(--bg);
-  color: var(--text);
+  margin: 0; background: var(--bg); color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  min-height: 100vh;
+  font-size: 14px; line-height: 1.45;
 }
+.wrap { padding: 22px 26px 60px; max-width: 1500px; }
+/* En la vista de mes se aprovecha todo el ancho de la ventana para que los
+   31 días se separen más, sin provocar scroll horizontal. */
+.wrap.ancho { max-width: none; }
 
-/* ── Layout ── */
-.page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
-  transition: padding-right .3s;
+/* ── Cabecera ───────────────────────────────────────────── */
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+h1 { font-size: 20px; font-weight: 600; margin: 0 0 3px; display: flex; align-items: center; gap: 9px; }
+h1 i { color: var(--teal); font-size: 20px; }
+.sub { color: var(--text-muted); font-size: 13px; margin: 0; }
+.head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.status {
+  font-size: 12px; color: var(--text-muted); background: var(--surface);
+  border: 0.5px solid var(--border); border-radius: var(--radius);
+  padding: 6px 11px; display: inline-flex; align-items: center; gap: 6px;
 }
-.page.panel-open { padding-right: calc(var(--panel-w) + 2rem); }
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-.page-header h1 {
-  font-size: 20px; font-weight: 600;
-  display: flex; align-items: center; gap: 8px;
-}
-.page-header h1 i { font-size: 20px; color: var(--teal); }
-.page-header p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-.hint {
-  font-size: 12px; color: var(--text-faint);
-  background: var(--surface2); border: 0.5px solid var(--border);
-  border-radius: var(--radius); padding: 6px 12px;
-  display: flex; align-items: center; gap: 6px; white-space: nowrap;
-}
-
-/* ── Timeline ── */
-.timeline-wrap { overflow-x: auto; padding-bottom: 8px; }
-.timeline { min-width: 980px; display: flex; flex-direction: column; }
-
-.weeks-row {
-  display: grid;
-  grid-template-columns: 130px repeat(5,1fr) 1px repeat(3,1fr);
-  gap: 6px; margin-bottom: 8px; align-items: stretch;
-}
-.label-spacer { background: transparent; }
-.week-cell {
-  text-align: center; padding: 7px 6px;
-  border-radius: var(--radius); font-size: 11px; font-weight: 600;
-  border: 0.5px solid var(--border);
-}
-.week-cell .fase-tag { font-size: 10px; font-weight: 400; opacity:.75; display:block; margin-top:1px; }
-.week-cell.m2 { background:var(--m2-bg); color:var(--m2-text); border-color:var(--m2-border); }
-.week-cell.m1 { background:var(--m1-bg); color:var(--m1-text); border-color:var(--m1-border); }
-.week-cell.current { background:var(--teal) !important; color:#fff !important; border-color:var(--teal-dark) !important; box-shadow:0 0 0 3px rgba(29,158,117,.2); }
-.week-cell.current .fase-tag { opacity:.85; }
-.divider-head { background: var(--border-strong); width:1px; align-self:stretch; }
-
-.phase-legend { display:flex; gap:12px; margin-bottom:14px; margin-left:136px; }
-.phase-pill {
-  font-size:11px; padding:3px 10px; border-radius:20px; border:0.5px solid; font-weight:500;
-}
-.phase-pill.m2 { background:var(--m2-bg); color:var(--m2-text); border-color:var(--m2-border); }
-.phase-pill.m1 { background:var(--m1-bg); color:var(--m1-text); border-color:var(--m1-border); }
-
-.area-row {
-  display: grid;
-  grid-template-columns: 130px repeat(5,1fr) 1px repeat(3,1fr);
-  gap: 6px; margin-bottom: 10px; align-items: start;
-}
-.area-divider { background:var(--border); width:1px; align-self:stretch; }
-.area-label { display:flex; flex-direction:column; gap:4px; padding-top:6px; padding-right:8px; }
-.area-dot-label { display:flex; align-items:center; gap:7px; }
-.area-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:1px; }
-.dot-teal { background:var(--teal); }
-.dot-blue { background:var(--blue); }
-.area-name { font-size:12px; font-weight:600; line-height:1.3; }
-.cell-empty { min-height:44px; }
-.sep-row { height:1px; background:var(--border); margin:8px 0 14px; }
-
-/* ── Task card ── */
-.task-card {
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 9px 10px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  transition: border-color .15s, background .12s;
-  user-select: none;
-}
-.task-card:last-child { margin-bottom: 0; }
-.task-card:hover { border-color: var(--border-strong); background: var(--surface2); }
-.task-card.active { border-color: var(--border-strong); background: var(--surface2); }
-.task-card.teal { border-left: 3px solid var(--teal); }
-.task-card.blue { border-left: 3px solid var(--blue); }
-
-.task-title {
-  font-size: 12px; font-weight: 500; line-height: 1.35;
-  display: flex; align-items: flex-start; gap: 5px;
-  margin-bottom: 5px;
-}
-.task-title i { font-size: 13px; margin-top:1px; flex-shrink:0; color:var(--text-muted); }
-
-.card-meta {
-  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
-}
-.card-badge {
-  font-size: 10px; padding: 1px 6px;
-  border-radius: 4px; border: 0.5px solid var(--border);
-  color: var(--text-faint); background: var(--surface2);
-  display: inline-flex; align-items: center; gap: 3px;
-}
-.card-badge i { font-size: 11px; }
-.card-badge.has-steps { color: var(--teal-dark); border-color: var(--teal-border); background: var(--teal-light); }
-.card-badge.has-links { color: var(--blue-dark); border-color: var(--blue-border); background: var(--blue-light); }
-.card-fase {
-  font-size: 9px; font-weight: 600; letter-spacing: .3px;
-  padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
-  border: 0.5px solid var(--m2-border); background: var(--m2-bg); color: var(--m2-text);
-}
-.card-fase.m1 { border-color: var(--m1-border); background: var(--m1-bg); color: var(--m1-text); }
-
-/* ── Side panel ── */
-.panel-overlay {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.15);
-  z-index: 100;
-}
-.panel-overlay.open { display: block; }
-
-.side-panel {
-  position: fixed;
-  top: 0; right: 0; bottom: 0;
-  width: var(--panel-w);
-  background: var(--surface);
-  border-left: 0.5px solid var(--border-strong);
-  z-index: 101;
-  display: flex;
-  flex-direction: column;
-  transform: translateX(100%);
-  transition: transform .25s cubic-bezier(.4,0,.2,1);
-  overflow: hidden;
-}
-.side-panel.open { transform: translateX(0); }
-
-.panel-header {
-  padding: 16px 18px 14px;
-  border-bottom: 0.5px solid var(--border);
-  display: flex; align-items: flex-start; gap: 10px;
-  flex-shrink: 0;
-}
-.panel-color-bar {
-  width: 4px; border-radius: 2px; align-self: stretch; flex-shrink: 0;
-}
-.panel-color-bar.teal { background: var(--teal); }
-.panel-color-bar.blue { background: var(--blue); }
-.panel-header-text { flex: 1; min-width: 0; }
-.panel-header-text h2 { font-size: 15px; font-weight: 600; line-height: 1.3; }
-.panel-header-text .panel-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-.panel-close {
-  background: transparent; border: none; cursor: pointer;
-  color: var(--text-muted); font-size: 20px; padding: 2px;
-  display: flex; align-items: center; flex-shrink: 0;
-  border-radius: 6px; transition: background .12s;
-}
-.panel-close:hover { background: var(--surface2); }
-
-.panel-body {
-  flex: 1; overflow-y: auto; padding: 18px;
-  display: flex; flex-direction: column; gap: 20px;
-}
-.panel-resize-handle {
-  position: absolute; top: 0; left: 0; bottom: 0; width: 7px;
-  cursor: ew-resize; z-index: 5;
-}
-.panel-resize-handle::after {
-  content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px;
-  background: var(--border-strong); transition: background .12s;
-}
-.panel-resize-handle:hover::after, .panel-resize-handle.dragging::after { background: var(--teal); }
-
-/* Section inside panel */
-.psec-label {
-  font-size: 11px; font-weight: 600; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--text-faint);
-  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
-}
-.psec-label i { font-size: 14px; }
-
-/* Steps */
-.steps-list { display: flex; flex-direction: column; gap: 5px; }
-.step-row {
-  display: flex; align-items: flex-start; gap: 8px;
-  background: var(--surface2); border-radius: var(--radius);
-  padding: 6px 8px; border: 0.5px solid var(--border);
-}
-.step-num {
-  font-size: 10px; font-weight: 600; color: var(--text-faint);
-  min-width: 16px; text-align: right; padding-top: 2px;
-}
-.step-text {
-  flex: 1; font-size: 13px; color: var(--text);
-  background: transparent; border: none; outline: none;
-  font-family: inherit; resize: none;
-  min-height: 20px; line-height: 1.45;
-  overflow: hidden;
-}
-.step-del {
-  background: transparent; border: none; cursor: pointer;
-  color: var(--text-faint); font-size: 16px; padding: 1px 2px;
-  border-radius: 4px; transition: color .12s, background .12s;
-  display: flex; align-items: center; flex-shrink: 0;
-  margin-top: 1px;
-}
-.step-del:hover { color: #cc3333; background: #fff0f0; }
-
-.reorder-col {
-  display: flex; align-items: center; flex-shrink: 0;
-  margin-top: 1px; cursor: grab; color: var(--text-faint);
-  touch-action: none;
-}
-.reorder-col:active { cursor: grabbing; }
-.reorder-col i { font-size: 15px; }
-
-.step-row, .link-row-panel { transition: transform .12s, opacity .12s; }
-.step-row.dragging, .link-row-panel.dragging { opacity: .35; }
-.step-row.drag-over-top, .link-row-panel.drag-over-top { box-shadow: inset 0 2px 0 0 var(--teal); }
-.step-row.drag-over-bottom, .link-row-panel.drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--teal); }
-
-.btn-add-step {
-  font-size: 12px; padding: 5px 10px;
-  border: 0.5px dashed var(--border-strong);
-  border-radius: var(--radius); background: transparent;
-  color: var(--text-muted); cursor: pointer; font-family: inherit;
-  display: flex; align-items: center; gap: 5px;
-  transition: background .12s, border-color .12s;
-  width: 100%;
-}
-.btn-add-step:hover { background: var(--surface2); border-color: var(--teal); color: var(--teal-dark); }
-
-/* Links */
-.links-list { display: flex; flex-direction: column; gap: 5px; }
-.link-row-panel {
-  display: flex; align-items: center; gap: 6px;
-}
-.link-name-inp {
-  flex: 1 1 38%; min-width: 90px;
-  font-size: 12px; padding: 5px 8px;
-  border: 0.5px solid var(--border-strong);
-  border-radius: 6px; background: var(--surface);
-  color: var(--text); font-family: inherit; outline: none;
-}
-.link-name-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(55,138,221,.15); }
-.link-url-inp {
-  flex: 2 1 55%; min-width: 0;
-  font-size: 12px; padding: 5px 8px;
-  border: 0.5px solid var(--border-strong);
-  border-radius: 6px; background: var(--surface);
-  color: var(--text); font-family: inherit; outline: none;
-}
-.link-url-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(55,138,221,.15); }
-.link-go {
-  background: transparent; border: 0.5px solid var(--blue-border);
-  color: var(--blue-dark); border-radius: 6px; cursor: pointer;
-  font-size: 16px; padding: 4px 6px; display: flex; align-items: center;
-  transition: background .12s; flex-shrink: 0;
-  text-decoration: none;
-}
-.link-go:hover { background: var(--blue-light); }
-.link-go.disabled { opacity: .3; pointer-events: none; }
-.link-del-btn {
-  background: transparent; border: none; cursor: pointer;
-  color: var(--text-faint); font-size: 16px; padding: 3px 4px;
-  border-radius: 4px; display: flex; align-items: center; flex-shrink: 0;
-  transition: color .12s, background .12s;
-}
-.link-del-btn:hover { color: #cc3333; background: #fff0f0; }
-
-.btn-add-link {
-  font-size: 12px; padding: 5px 10px;
-  border: 0.5px dashed var(--border-strong);
-  border-radius: var(--radius); background: transparent;
-  color: var(--text-muted); cursor: pointer; font-family: inherit;
-  display: flex; align-items: center; gap: 5px;
-  transition: background .12s, border-color .12s;
-  width: 100%;
-}
-.btn-add-link:hover { background: var(--surface2); border-color: var(--blue); color: var(--blue-dark); }
-
-/* Panel footer */
-.panel-footer {
-  padding: 12px 18px;
-  border-top: 0.5px solid var(--border);
-  display: flex; gap: 8px; flex-shrink: 0;
-}
-.btn-save-panel {
-  flex: 1; padding: 8px;
-  background: var(--teal); color: #fff;
-  border: none; border-radius: var(--radius);
-  font-size: 13px; font-weight: 500; cursor: pointer;
-  font-family: inherit;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  transition: opacity .12s;
-}
-.btn-save-panel:hover { opacity: .88; }
-.btn-save-panel.blue-area { background: var(--blue); }
-.btn-cancel-panel {
-  padding: 8px 14px;
-  background: transparent; border: 0.5px solid var(--border-strong);
-  border-radius: var(--radius); font-size: 13px;
-  color: var(--text-muted); cursor: pointer; font-family: inherit;
-  transition: background .12s;
-}
-.btn-cancel-panel:hover { background: var(--surface2); }
-
-/* Toast */
-.toast {
-  position: fixed; bottom: 1.5rem; left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: var(--text); color: var(--surface);
-  font-size: 13px; padding: 8px 16px; border-radius: 20px;
-  opacity: 0; transition: opacity .2s, transform .2s;
-  pointer-events: none; z-index: 200; white-space: nowrap;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-/* Shared btn base */
+.status.ok { color: var(--teal-dark); border-color: var(--teal-border); background: var(--teal-light); }
+.status.err { color: #a33; border-color: #e8b9b9; background: #fdf3f3; }
 .btn {
-  font-size: 11px; padding: 3px 9px; border-radius: 6px;
-  border: 0.5px solid var(--border-strong);
-  background: transparent; color: var(--text-muted);
-  cursor: pointer; font-family: inherit;
-  transition: background .12s;
-  display: inline-flex; align-items: center; gap: 4px;
-  text-decoration: none; line-height: 1.4;
+  background: var(--surface); border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius); padding: 6px 12px; font-size: 13px;
+  cursor: pointer; color: var(--text); font-family: inherit;
+  display: inline-flex; align-items: center; gap: 6px;
 }
 .btn:hover { background: var(--surface2); }
-.btn i { font-size: 12px; }
+.btn-primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+.btn-primary:hover { background: var(--teal-dark); }
 
-/* Task modal */
-.modal-overlay {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.25);
-  z-index: 110;
-}
-.modal-overlay.open { display: block; }
-.task-modal {
-  display: none;
-  position: fixed; top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  border: 0.5px solid var(--border-strong);
-  width: 340px; max-width: 90vw;
-  padding: 18px; z-index: 111;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-}
-.task-modal.open { display: block; }
-.task-modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
-.task-modal label {
-  display: block; font-size: 11px; font-weight: 600;
-  color: var(--text-muted); margin: 10px 0 4px;
-  text-transform: uppercase; letter-spacing: .03em;
-}
-.task-modal select, .task-modal input {
-  width: 100%; font-size: 13px; padding: 7px 9px;
-  border: 0.5px solid var(--border-strong); border-radius: 6px;
-  background: var(--surface); color: var(--text); font-family: inherit;
-}
-.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
-.modal-actions .btn-save-panel { flex: 1; }
-
-/* Tabs */
-.btn.active { background: var(--teal); color: #fff; border-color: var(--teal-dark); }
-.btn.active:hover { background: var(--teal); opacity: .92; }
-
-/* Task done check */
-.task-check {
-  color: var(--text-faint); cursor: pointer; padding: 2px;
-  border-radius: 4px; flex-shrink: 0; display: flex; align-items: center;
-}
-.task-check:hover { background: var(--surface2); }
-.task-check i { font-size: 17px; }
-.task-card.done { opacity: .55; }
-.task-card.done .task-title { text-decoration: line-through; }
-
-/* Puntual view */
-.eventual-cards { display: flex; flex-wrap: wrap; gap: 8px; }
-.eventual-cards .task-card { width: 220px; margin-bottom: 0; }
-.eventual-empty { font-size: 12px; color: var(--text-faint); padding: 8px 0; }
-
-/* View tabs (Rutinario / Puntual / Enlaces) — más grandes y visibles */
-.view-tabs { display: flex; gap: 10px; margin: 16px 0 22px; }
-.view-tab {
-  font-size: 14px; font-weight: 600; padding: 10px 20px;
-  border-radius: 9px; border: 0.5px solid var(--border-strong);
-  background: var(--surface); color: var(--text-muted);
-  cursor: pointer; font-family: inherit;
+/* ── Pestañas ───────────────────────────────────────────── */
+.tabs { display: flex; gap: 8px; margin: 20px 0 16px; }
+.tab {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius); padding: 9px 16px; font-size: 14px;
+  cursor: pointer; color: var(--text); font-family: inherit;
   display: inline-flex; align-items: center; gap: 7px;
-  transition: background .12s, color .12s, border-color .12s;
 }
-.view-tab i { font-size: 17px; }
-.view-tab:hover { background: var(--surface2); }
-.view-tab.active { background: var(--teal); color: #fff; border-color: var(--teal-dark); }
+.tab:hover { background: var(--surface2); }
+.tab.active { background: var(--teal); border-color: var(--teal); color: #fff; }
 
-/* Enlaces view */
+/* ── Catálogo ───────────────────────────────────────────── */
+.area { margin-bottom: 26px; }
+.area-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.area-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.area-dot.teal { background: var(--teal); }
+.area-dot.blue { background: var(--blue); }
+.area-name { font-size: 14px; font-weight: 600; }
+.area-count { font-size: 12px; color: var(--text-faint); }
+.cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.card {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-left: 2.5px solid var(--border); border-radius: var(--radius-lg);
+  padding: 11px 13px; width: 268px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+.card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.card.teal { border-left-color: var(--teal); }
+.card.blue { border-left-color: var(--blue); }
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+.card-title { font-size: 13px; font-weight: 600; line-height: 1.3; display: flex; gap: 7px; align-items: flex-start; }
+.card-title i { font-size: 14px; color: var(--text-muted); margin-top: 1px; flex-shrink: 0; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  border: 0.5px solid var(--border); color: var(--text-faint);
+  background: var(--surface2); display: inline-flex; align-items: center; gap: 3px;
+}
+.badge i { font-size: 11px; }
+.badge.steps { color: var(--teal-dark); border-color: var(--teal-border); background: var(--teal-light); }
+.badge.links { color: var(--blue-dark); border-color: var(--blue-border); background: var(--blue-light); }
+.tag-ant {
+  font-size: 9px; font-weight: 600; letter-spacing: .3px;
+  padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
+  border: 0.5px solid var(--a2-border); background: var(--a2-bg); color: var(--a2-text);
+}
+.tag-ant.a1 { border-color: var(--a1-border); background: var(--a1-bg); color: var(--a1-text); }
+.tag-ant.ev { border-color: var(--ev-border); background: var(--ev-bg); color: var(--ev-text); }
+.sched-line { font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+.sched-line i { font-size: 12px; }
+.sched-line.none { color: var(--text-faint); font-style: italic; }
+.empty { color: var(--text-faint); font-size: 13px; padding: 10px 0; }
+
+/* ── Calendario ─────────────────────────────────────────── */
+.cal-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.seg { display: flex; border: 0.5px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
+.seg button {
+  background: var(--surface); border: none; padding: 6px 13px; font-size: 13px;
+  cursor: pointer; color: var(--text); font-family: inherit;
+  border-right: 0.5px solid var(--border);
+}
+.seg button:last-child { border-right: none; }
+.seg button.active { background: var(--teal); color: #fff; }
+.cal-title { font-size: 15px; font-weight: 600; min-width: 170px; }
+.legend { display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.legend span { font-size: 11.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; border: 0.5px solid; }
+.lg-a2 { background: var(--a2-bg); border-color: var(--a2-border); }
+.lg-a1 { background: var(--a1-bg); border-color: var(--a1-border); }
+.lg-ev { background: var(--ev-bg); border-color: var(--ev-border); }
+
+.month {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg); padding: 12px 14px 14px; margin-bottom: 14px;
+  overflow-x: auto;
+}
+.month-name { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.month-name .n-tasks { font-size: 11px; color: var(--text-faint); font-weight: 400; }
+.scale { display: grid; gap: 2px; min-width: 0; }
+.scale.mes { gap: 1px; }
+/* Semana: solo 7 columnas, así que caben cabeceras y textos holgados */
+/* Semana: columnas de día visibles para que las barras se lean contra la
+   rejilla y se pueda saber de un vistazo en qué día empiezan y acaban. */
+.scale.semana { column-gap: 0; row-gap: 4px; min-width: 0; }
+.scale.semana .day-h {
+  font-size: 11.5px; padding: 3px 0 5px 7px; text-align: left;
+  font-variant-numeric: tabular-nums; border-bottom: none;
+}
+.scale.semana .day-h.we { background: none; border-radius: 0; }
+.scale.semana .day-h.today {
+  background: none; color: var(--teal-dark); font-weight: 700;
+  border-radius: 0; border-bottom-color: transparent;
+}
+.scale.semana .bar {
+  padding: 5px 9px; font-size: 12.5px; margin-right: 4px;
+  border-left-width: 3px; border-radius: 4px; font-weight: 500;
+}
+.col-bg { border-left: 0.5px solid var(--border); }
+.col-bg.we { background: rgba(0,0,0,.025); }
+.col-bg.hoy { background: var(--teal-light); border-left-color: var(--teal); }
+.bar .area-dot { width: 6px; height: 6px; flex-shrink: 0; }
+
+/* Semanas apiladas dentro de la vista de mes */
+.sem-fila { padding: 7px 0 9px; border-top: 0.5px solid var(--border); }
+.sem-fila:first-of-type { border-top: none; padding-top: 1px; }
+.sem-fila.vacia { padding: 4px 0 5px; }          /* sin tareas: fila fina */
+.sem-fila.vacia .day-h { color: var(--text-faint); font-size: 11px; }
+.day-h.fuera { color: var(--border-strong); }
+.scale.mes .bar { padding: 4px 6px; font-size: 11.5px; }
+.scale.mes .bar i.ti { margin-right: 1px; }
+.scale .day-h {
+  font-size: 9.5px; color: var(--text-faint); text-align: center;
+  padding-bottom: 3px; border-bottom: 0.5px solid var(--border);
+}
+.scale .day-h.we { color: var(--text-faint); background: var(--surface2); border-radius: 3px 3px 0 0; }
+/* Día actual: número en blanco sobre fondo sólido */
+.scale .day-h.today {
+  color: #fff; font-weight: 700; background: var(--teal);
+  border-radius: 4px 4px 0 0; border-bottom-color: var(--teal);
+}
+.bar {
+  grid-row: var(--row); font-size: 11px; padding: 3px 7px; border-radius: 5px;
+  border: 0.5px solid; cursor: pointer; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; display: flex; align-items: center; gap: 5px;
+  min-width: 0;                      /* deja que la barra se encoja con la columna */
+}
+/* El texto se recorta dentro de la barra en lugar de ensanchar la rejilla */
+.bar-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar:hover { filter: brightness(.97); }
+.bar i.ti { font-size: 11px; flex-shrink: 0; }
+.bar .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.bar.a2 { background: var(--a2-bg); border-color: var(--a2-border); color: var(--a2-text); }
+.bar.a1 { background: var(--a1-bg); border-color: var(--a1-border); color: var(--a1-text); }
+.bar.ev { background: var(--ev-bg); border-color: var(--ev-border); color: var(--ev-text); }
+.cal-empty {
+  background: var(--surface); border: 0.5px dashed var(--border-strong);
+  border-radius: var(--radius-lg); padding: 30px; text-align: center; color: var(--text-muted);
+}
+.cal-empty strong { display: block; font-size: 15px; color: var(--text); margin-bottom: 5px; font-weight: 600; }
+.year-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 12px; }
+.year-grid .month { margin-bottom: 0; }
+.year-grid .scale { min-width: 0; }
+
+/* Vista de año por trimestres: tres meses por fila, cuatro filas */
+.trimestre {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; margin-bottom: 12px;
+}
+.trimestre .month { margin-bottom: 0; }
+.trimestre .scale { min-width: 0; }
+@media (max-width: 1100px) { .trimestre { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px)  { .trimestre { grid-template-columns: minmax(0, 1fr); } }
+
+/* Matriz anual: filas de tarea, columnas de mes */
+.ymatrix {
+  display: grid; grid-template-columns: minmax(0, 190px) repeat(12, minmax(0, 1fr));
+  column-gap: 3px; row-gap: 4px; align-items: center;
+}
+.ym-head {
+  font-size: 10.5px; color: var(--text-muted); text-align: center;
+  padding-bottom: 5px; font-variant-numeric: tabular-nums;
+}
+.ym-head.hoy { color: var(--teal-dark); font-weight: 700; }
+.ym-area {
+  grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  display: flex; align-items: center; gap: 7px; padding: 12px 0 2px;
+}
+.ym-area:first-of-type { padding-top: 4px; }
+.ym-name {
+  font-size: 12.5px; display: flex; align-items: center; gap: 6px;
+  min-width: 0; cursor: pointer; padding-right: 8px;
+}
+.ym-name i { font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
+.ym-name:hover { color: var(--teal-dark); }
+.ym-cell {
+  height: 21px; background: var(--surface2); border-radius: 3px;
+  position: relative; cursor: pointer;
+}
+.ym-cell.hoy { background: var(--teal-light); }
+.ym-cell:hover { outline: 0.5px solid var(--border-strong); }
+.ym-mark { position: absolute; top: 3px; bottom: 3px; border-radius: 2px; border: 0.5px solid; min-width: 2px; }
+.ym-mark.a2 { background: var(--a2-bg); border-color: var(--a2-border); }
+.ym-mark.a1 { background: var(--a1-bg); border-color: var(--a1-border); }
+.ym-mark.ev { background: var(--ev-bg); border-color: var(--ev-border); }
+.day-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Apps ───────────────────────────────────────────────── */
 .links-grid { display: flex; flex-wrap: wrap; gap: 12px; }
 .link-card {
   background: var(--surface); border: 0.5px solid var(--border);
@@ -472,8 +270,7 @@ body {
 .link-card:hover .link-card-drag { opacity: .6; }
 .link-card-name {
   font-size: 13px; font-weight: 600; line-height: 1.35;
-  display: flex; align-items: flex-start; gap: 7px;
-  word-break: break-word;
+  display: flex; align-items: flex-start; gap: 7px; word-break: break-word;
 }
 .link-card-name i { color: var(--blue-dark); font-size: 15px; margin-top: 1px; flex-shrink: 0; }
 .link-card-icon-img {
@@ -489,8 +286,7 @@ body {
 }
 .link-card-open:hover { background: var(--blue-border); }
 .link-card-hover-actions {
-  display: flex; gap: 6px;
-  opacity: 0; width: 0; overflow: hidden;
+  display: flex; gap: 6px; opacity: 0; width: 0; overflow: hidden;
   transition: opacity .15s ease, width .15s ease;
 }
 .link-card:hover .link-card-hover-actions,
@@ -498,659 +294,950 @@ body {
 .link-card-icon-btn {
   background: transparent; border: 0.5px solid var(--border-strong);
   border-radius: 6px; padding: 6px 9px; cursor: pointer;
-  color: var(--text-muted); display: flex; align-items: center;
-  flex-shrink: 0;
+  color: var(--text-muted); display: flex; align-items: center; flex-shrink: 0;
 }
 .link-card-icon-btn:hover { background: var(--surface2); }
 .link-card-icon-btn.danger:hover { background: rgba(201,42,42,.10); color: #c92a2a; border-color: #c92a2a; }
+.icon-preview { display: none; align-items: center; gap: 8px; margin-top: 6px; }
+.icon-preview img { width: 32px; height: 32px; border-radius: 6px; border: 0.5px solid var(--border); }
 @media (hover: none) {
   .link-card-hover-actions { opacity: 1; width: auto; }
   .link-card-drag { opacity: .6; }
+}
+
+/* ── Panel lateral ──────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.12);
+  opacity: 0; pointer-events: none; transition: opacity .18s ease; z-index: 40;
+}
+.overlay.open { opacity: 1; pointer-events: auto; }
+.panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-w); max-width: 94vw;
+  background: var(--surface); border-left: 0.5px solid var(--border);
+  box-shadow: -4px 0 20px rgba(0,0,0,.07); transform: translateX(100%);
+  transition: transform .2s ease; z-index: 50; display: flex; flex-direction: column;
+}
+.panel.open { transform: translateX(0); }
+.panel-head { padding: 18px 20px 14px; border-bottom: 0.5px solid var(--border); }
+.panel-title-input {
+  font-size: 16px; font-weight: 600; margin: 0 0 5px; width: 100%;
+  border: 0.5px solid transparent; border-radius: 6px;
+  padding: 3px 6px; margin-left: -6px; background: transparent;
+  font-family: inherit; color: var(--text);
+}
+.panel-title-input:hover { border-color: var(--border); background: var(--surface2); }
+.panel-title-input:focus { border-color: var(--teal); background: var(--surface); }
+.meta-select {
+  font-size: 12px; color: var(--text-muted); border: 0.5px solid transparent;
+  background: transparent; padding: 2px 4px; width: auto; border-radius: 5px; cursor: pointer;
+}
+.meta-select:hover { border-color: var(--border); background: var(--surface2); }
+.meta-select:focus { border-color: var(--teal); background: var(--surface); }
+.panel-meta { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 7px; }
+.panel-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+.panel-foot { padding: 13px 20px; border-top: 0.5px solid var(--border); display: flex; gap: 8px; }
+.sec-title {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  margin: 0 0 9px; display: flex; align-items: center; gap: 6px;
+}
+.sec { margin-bottom: 22px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field.wide { grid-column: 1 / -1; }
+label { font-size: 11.5px; color: var(--text-muted); }
+input, select, textarea {
+  border: 0.5px solid var(--border-strong); border-radius: 6px;
+  padding: 7px 9px; font-size: 13px; background: var(--surface);
+  color: var(--text); font-family: inherit; outline: none; width: 100%;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--teal); }
+textarea { resize: vertical; min-height: 58px; }
+.hint { font-size: 11.5px; color: var(--text-faint); }
+.row-item {
+  display: flex; align-items: flex-start; gap: 8px; padding: 7px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+.row-item:last-child { border-bottom: none; }
+.row-num {
+  font-size: 10px; color: var(--text-faint); background: var(--surface2);
+  border-radius: 4px; padding: 1px 5px; flex-shrink: 0; margin-top: 2px;
+}
+.row-text { flex: 1; font-size: 13px; line-height: 1.4; word-break: break-word; }
+.row-text a { color: var(--blue-dark); text-decoration: none; word-break: break-all; }
+.row-text a:hover { text-decoration: underline; }
+.icon-btn {
+  background: transparent; border: 0.5px solid var(--border); border-radius: 5px;
+  padding: 3px 6px; cursor: pointer; color: var(--text-faint); flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--surface2); color: var(--text); }
+.icon-btn.danger:hover { color: #c92a2a; border-color: #c92a2a; background: rgba(201,42,42,.08); }
+
+/* ── Modal ──────────────────────────────────────────────── */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 60;
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-bg.open { display: flex; }
+.modal {
+  background: var(--surface); border-radius: var(--radius-lg); padding: 20px;
+  width: 440px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+}
+.modal h3 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+.modal .fields { margin-bottom: 16px; }
+.modal-foot { display: flex; gap: 8px; justify-content: flex-end; }
+
+.toast {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--text); color: #fff; padding: 9px 16px; border-radius: var(--radius);
+  font-size: 13px; opacity: 0; transition: all .2s ease; z-index: 90; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 720px) {
+  .wrap { padding: 16px 14px 50px; }
+  .fields { grid-template-columns: 1fr; }
+  .legend { margin-left: 0; }
 }
 </style>
 </head>
 <body>
 
-<div class="page" id="page">
-  <div class="page-header">
+<div class="wrap">
+  <div class="head">
     <div>
-      <h1><i class="ti ti-layout-columns"></i>Planning operativo — Mercadona Online</h1>
-      <p>Haz clic en cualquier tarea para ver el detalle, añadir pasos y gestionar enlaces</p>
+      <h1><i class="ti ti-calendar-month"></i>Planning por fechas — Mercadona Online</h1>
+      <p class="sub">Define cada tarea una vez en el catálogo y dale su rango de días. El calendario la repite cada mes.</p>
     </div>
-    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      <div class="hint"><i class="ti ti-click"></i>Clic en tarea para abrir detalle</div>
-      <div class="hint" id="sync-badge"><i class="ti ti-loader"></i><span id="sync-text">Iniciando…</span></div>
-      <button class="btn" onclick="openTaskModal()" title="Añadir una tarea nueva a Gestión Centros u Oferta"><i class="ti ti-plus"></i>Nueva tarea</button>
-      <button class="btn" id="btn-sync-now" onclick="syncToJsonBin()" title="Forzar sincronización manual (solo necesario para quien mantiene los datos)"><i class="ti ti-cloud-upload"></i>Sincronizar</button>
+    <div class="head-actions">
+      <span class="status" id="status"><i class="ti ti-device-floppy"></i><span id="status-txt">Guardado en este navegador</span></span>
+      <button class="btn" onclick="openTaskModal()"><i class="ti ti-plus"></i>Nueva tarea</button>
     </div>
   </div>
 
-  <div class="view-tabs">
-    <button class="view-tab active" id="tab-rutinario" onclick="switchView('rutinario')"><i class="ti ti-calendar-week"></i>Rutinario</button>
-    <button class="view-tab" id="tab-puntual" onclick="switchView('puntual')"><i class="ti ti-list-details"></i>Eventos</button>
-    <button class="view-tab" id="tab-enlaces" onclick="switchView('enlaces')"><i class="ti ti-link"></i>Apps</button>
+  <div class="tabs">
+    <button class="tab active" id="tab-calendario" onclick="switchView('calendario')"><i class="ti ti-calendar"></i>Calendario</button>
+    <button class="tab" id="tab-catalogo" onclick="switchView('catalogo')"><i class="ti ti-list-details"></i>Catálogo</button>
+    <button class="tab" id="tab-apps" onclick="switchView('apps')"><i class="ti ti-link"></i>Apps</button>
   </div>
 
-  <div id="view-rutinario">
-    <div class="phase-legend">
-      <span class="phase-pill m2">◀ M-2 · 5 semanas</span>
-      <span class="phase-pill m1">M-1 · 3 semanas ▶</span>
+  <div id="view-catalogo" style="display:none;"></div>
+
+  <div id="view-calendario">
+    <div class="cal-bar">
+      <div class="seg">
+        <button id="cv-dia" onclick="setCalMode('dia')">Día</button>
+        <button id="cv-semana" onclick="setCalMode('semana')">Semana</button>
+        <button id="cv-mes" class="active" onclick="setCalMode('mes')">Mes</button>
+        <button id="cv-anio" onclick="setCalMode('anio')">Año</button>
+      </div>
+      <button class="btn" onclick="calStep(-1)" title="Anterior"><i class="ti ti-chevron-left"></i></button>
+      <button class="btn" onclick="calToday()">Hoy</button>
+      <button class="btn" onclick="calStep(1)" title="Siguiente"><i class="ti ti-chevron-right"></i></button>
+      <span class="cal-title" id="cal-title"></span>
+      <div class="legend">
+        <span><i class="lg-a2"></i>2 meses antes</span>
+        <span><i class="lg-a1"></i>1 mes antes</span>
+        <span><i class="lg-ev"></i>Anual</span>
+      </div>
     </div>
-    <div class="timeline-wrap">
-      <div class="timeline" id="app"></div>
-    </div>
+    <div id="cal-body"></div>
   </div>
 
-  <div id="view-puntual" style="display:none;">
-    <div id="eventual-app"></div>
-  </div>
-
-  <div id="view-enlaces" style="display:none;">
-    <div style="margin-bottom:14px;">
-      <button class="btn" onclick="openLinkModal()"><i class="ti ti-plus"></i>Nuevo enlace</button>
-    </div>
-    <div id="enlaces-app"></div>
+  <div id="view-apps" style="display:none;">
+    <button class="btn" onclick="openLinkModal()" style="margin-bottom:14px;"><i class="ti ti-plus"></i>Nuevo enlace</button>
+    <div id="apps-grid"></div>
   </div>
 </div>
 
-<!-- Side panel -->
-<div class="panel-overlay" id="overlay" onclick="closePanel()"></div>
+<div class="overlay" id="overlay" onclick="closePanel()"></div>
 
-<div class="side-panel" id="panel">
-  <div class="panel-resize-handle" id="panel-resize-handle" title="Arrastra para cambiar el ancho del panel"></div>
-  <div class="panel-header">
-    <div class="panel-color-bar" id="panel-bar"></div>
-    <div class="panel-header-text">
-      <h2 id="panel-title"></h2>
-      <div class="panel-meta" id="panel-meta"></div>
+<aside class="panel" id="panel">
+  <div class="panel-head">
+    <input type="text" id="p-title" class="panel-title-input" placeholder="Nombre de la tarea">
+    <div class="panel-meta">
+      <span class="area-dot" id="p-dot"></span>
+      <select id="p-area" class="meta-select" onchange="onAreaChange()">
+        <option value="centros">Gestión Centros</option>
+        <option value="oferta">Gestión Oferta</option>
+      </select>
+      <select id="p-icon" class="meta-select">
+        <option value="ti-list">Lista</option>
+        <option value="ti-file-plus">Documento</option>
+        <option value="ti-mail">Correo</option>
+        <option value="ti-send">Enviar</option>
+        <option value="ti-chart-line">Gráfica</option>
+        <option value="ti-building-store">Tienda</option>
+        <option value="ti-checklist">Checklist</option>
+        <option value="ti-circle-check">Validar</option>
+        <option value="ti-map-pin">Mapa</option>
+        <option value="ti-table">Tabla</option>
+      </select>
     </div>
-    <button class="panel-close" onclick="closePanel()" aria-label="Cerrar"><i class="ti ti-x"></i></button>
   </div>
-
   <div class="panel-body">
-
-    <!-- Steps section -->
-    <div>
-      <div class="psec-label"><i class="ti ti-list-check"></i>Pasos</div>
-      <div class="steps-list" id="steps-list"></div>
-      <button class="btn-add-step" onclick="addStep()">
-        <i class="ti ti-plus"></i>Añadir paso
-      </button>
+    <div class="sec">
+      <p class="sec-title"><i class="ti ti-calendar-event"></i>Cuándo se hace</p>
+      <div class="fields">
+        <div class="field">
+          <label for="p-tipo">Repetición</label>
+          <select id="p-tipo" onchange="onTipoChange()">
+            <option value="">Sin programar</option>
+            <option value="mensual">Todos los meses</option>
+            <option value="anual">Todos los años</option>
+          </select>
+        </div>
+        <div class="field" id="f-ant">
+          <label for="p-ant">Antelación</label>
+          <select id="p-ant">
+            <option value="2">2 meses antes</option>
+            <option value="1">1 mes antes</option>
+            <option value="0">El mismo mes</option>
+          </select>
+        </div>
+        <div class="field" id="f-from">
+          <label for="p-from">Desde el día</label>
+          <input type="number" id="p-from" min="1" max="31" value="1">
+        </div>
+        <div class="field" id="f-to">
+          <label for="p-to">Hasta el día</label>
+          <input type="number" id="p-to" min="1" max="31" value="5">
+        </div>
+        <div class="field" id="f-fecha" style="display:none;">
+          <label for="p-fecha">Desde el día</label>
+          <input type="date" id="p-fecha">
+        </div>
+        <div class="field" id="f-fecha-fin" style="display:none;">
+          <label for="p-fecha-fin">Hasta el día</label>
+          <input type="date" id="p-fecha-fin">
+        </div>
+        <p class="hint wide" id="p-hint" style="grid-column:1/-1; margin:0;"></p>
+      </div>
     </div>
 
-    <!-- Links section -->
-    <div>
-      <div class="psec-label"><i class="ti ti-link"></i>Enlaces</div>
-      <div class="links-list" id="links-list"></div>
-      <button class="btn-add-link" onclick="addLink()">
-        <i class="ti ti-plus"></i>Añadir enlace
-      </button>
+    <div class="sec">
+      <p class="sec-title"><i class="ti ti-list-numbers"></i>Pasos</p>
+      <div id="p-steps"></div>
+      <div style="display:flex; gap:6px; margin-top:9px;">
+        <input type="text" id="p-new-step" placeholder="Añadir un paso" onkeydown="if(event.key==='Enter')addStep()">
+        <button class="btn" onclick="addStep()"><i class="ti ti-plus"></i></button>
+      </div>
     </div>
 
+    <div class="sec">
+      <p class="sec-title"><i class="ti ti-link"></i>Enlaces</p>
+      <div id="p-links"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:6px; margin-top:9px;">
+        <input type="text" id="p-link-name" placeholder="Nombre">
+        <input type="text" id="p-link-url" placeholder="URL o ruta">
+        <button class="btn" onclick="addLink()"><i class="ti ti-plus"></i></button>
+      </div>
+    </div>
   </div>
+  <div class="panel-foot">
+    <button class="btn btn-primary" onclick="savePanel()" style="flex:1;"><i class="ti ti-check"></i>Guardar</button>
+    <button class="btn" onclick="closePanel()">Cerrar</button>
+    <button class="btn" id="p-del" onclick="deleteTask()" style="color:#c92a2a; border-color:#c92a2a;"><i class="ti ti-trash"></i></button>
+  </div>
+</aside>
 
-  <div class="panel-footer">
-    <button class="btn-save-panel" id="btn-save-panel" onclick="savePanel()">
-      <i class="ti ti-check"></i>Guardar
-    </button>
-    <button class="btn-cancel-panel" onclick="closePanel()">Cancelar</button>
-    <button class="btn-cancel-panel" id="btn-delete-task" onclick="deleteTask()" style="display:none; color:#cc3333; border-color:#cc3333;">Eliminar</button>
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">Nueva tarea</h3>
+    <div class="fields">
+      <div class="field wide">
+        <label for="m-title">Nombre de la tarea</label>
+        <input type="text" id="m-title" placeholder="Por ejemplo: Crear QCC">
+      </div>
+      <div class="field">
+        <label for="m-area">Grupo</label>
+        <select id="m-area">
+          <option value="centros">Gestión Centros</option>
+          <option value="oferta">Gestión Oferta</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="m-icon">Icono</label>
+        <select id="m-icon">
+          <option value="ti-list">Lista</option>
+          <option value="ti-file-plus">Documento</option>
+          <option value="ti-mail">Correo</option>
+          <option value="ti-send">Enviar</option>
+          <option value="ti-chart-line">Gráfica</option>
+          <option value="ti-building-store">Tienda</option>
+          <option value="ti-checklist">Checklist</option>
+          <option value="ti-circle-check">Validar</option>
+          <option value="ti-map-pin">Mapa</option>
+          <option value="ti-table">Tabla</option>
+        </select>
+      </div>
+    </div>
+    <p class="hint" style="margin:0 0 14px;">Las fechas se ponen después, abriendo la tarea.</p>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeTaskModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="createTask()">Crear tarea</button>
+    </div>
   </div>
 </div>
 
-<!-- Task modal -->
-<div class="modal-overlay" id="task-modal-overlay" onclick="closeTaskModal()"></div>
-<div class="task-modal" id="task-modal">
-  <h3>Nueva tarea</h3>
-  <label for="tm-type">Tipo</label>
-  <select id="tm-type" onchange="onTaskTypeChange()">
-    <option value="rutinaria">Rutinaria (semanal)</option>
-    <option value="puntual">Puntual</option>
-  </select>
-  <label for="tm-area">Grupo</label>
-  <select id="tm-area">
-    <option value="centros">Gestión Centros</option>
-    <option value="oferta">Gestión Oferta</option>
-  </select>
-  <div id="tm-week-wrap">
-    <label for="tm-week">Semana</label>
-    <select id="tm-week"></select>
-  </div>
-  <label for="tm-title">Título</label>
-  <input id="tm-title" type="text" placeholder="Nombre de la tarea">
-  <label for="tm-icon">Icono (opcional)</label>
-  <input id="tm-icon" type="text" placeholder="ti-flag — por defecto ti-list">
-  <div class="modal-actions">
-    <button class="btn-save-panel" onclick="createTask()"><i class="ti ti-check"></i>Crear</button>
-    <button class="btn-cancel-panel" onclick="closeTaskModal()">Cancelar</button>
-  </div>
-</div>
-
-<!-- Link modal -->
-<div class="modal-overlay" id="link-modal-overlay" onclick="closeLinkModal()"></div>
-<div class="task-modal" id="link-modal">
-  <h3 id="lm-heading">Nuevo enlace</h3>
-  <label for="lm-name">Nombre</label>
-  <input id="lm-name" type="text" placeholder="p.ej. CONTROL DE CAMBIOS">
-  <label for="lm-url">Enlace</label>
-  <input id="lm-url" type="url" placeholder="https://…">
-  <label for="lm-icon-file">Icono (opcional)</label>
-  <input id="lm-icon-file" type="file" accept="image/*" onchange="onIconFileChange(event)">
-  <div id="lm-icon-preview" style="margin-top:8px; display:none; align-items:center; gap:10px;">
-    <img id="lm-icon-preview-img" style="width:40px; height:40px; border-radius:8px; object-fit:cover; border:0.5px solid var(--border-strong);">
-    <button type="button" onclick="clearLinkIcon()" style="font-size:11px; background:transparent; border:none; color:var(--text-muted); text-decoration:underline; cursor:pointer; font-family:inherit;">Quitar icono</button>
-  </div>
-  <div class="modal-actions">
-    <button class="btn-save-panel" onclick="saveLink()"><i class="ti ti-check"></i>Guardar</button>
-    <button class="btn-cancel-panel" onclick="closeLinkModal()">Cancelar</button>
+<div class="modal-bg" id="link-modal-bg">
+  <div class="modal">
+    <h3 id="lm-heading">Nuevo enlace</h3>
+    <div class="fields">
+      <div class="field wide">
+        <label for="lm-name">Nombre</label>
+        <input type="text" id="lm-name" placeholder="Por ejemplo: QCC Expansión">
+      </div>
+      <div class="field wide">
+        <label for="lm-url">Enlace o ruta</label>
+        <input type="text" id="lm-url" placeholder="https://… o C:\…">
+      </div>
+      <div class="field wide">
+        <label for="lm-icon-file">Icono (opcional)</label>
+        <input type="file" id="lm-icon-file" accept="image/*" onchange="onIconFileChange(event)">
+        <div class="icon-preview" id="lm-icon-preview">
+          <img id="lm-icon-preview-img" alt="">
+          <button class="btn" onclick="clearLinkIcon()"><i class="ti ti-x"></i>Quitar icono</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeLinkModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveLink()">Guardar enlace</button>
+    </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-const WEEKS = [
-  {key:'s1m2',label:'Sem 1',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:0},
-  {key:'s2m2',label:'Sem 2',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:1},
-  {key:'s3m2',label:'Sem 3',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:2},
-  {key:'s4m2',label:'Sem 4',fase:'M-2',cls:'m2', mOffset:-2, weekIdx:3},
-  // Semana en la que cae el día 1. Aquí conviven tareas con distinto mes
-  // objetivo (unas trabajan a 2 meses y otras a 1), así que la fase NO va en
-  // la columna sino en cada tarjeta, con su propiedad fase.
-  {key:'s5m2',label:'Sem 5',fase:'',cls:'m2', mOffset:-2, weekIdx:4, day1:true, day1Offset:1},
-  {key:'s1m1',label:'Sem 1',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:0},
-  {key:'s2m1',label:'Sem 2',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:1},
-  {key:'s3m1',label:'Sem 3',fase:'M-1',cls:'m1', mOffset:-1, weekIdx:2},
+// ══════════════════════════════════════════════════════════════
+// ALMACENAMIENTO
+// Clave propia, distinta de la del planning por semanas, para que las
+// dos herramientas convivan sin pisarse los datos.
+// ══════════════════════════════════════════════════════════════
+const LS_KEY = 'mco_planning_fechas_v1';
+
+const AREAS = [
+  { id:'centros', label:'Gestión Centros', color:'teal' },
+  { id:'oferta',  label:'Gestión Oferta',  color:'blue' }
 ];
 
-// Returns the Nth monday (0-based) of a given year+month
-function nthMonday(year, month, n) {
-  const d = new Date(year, month, 1);
-  const dow = d.getDay(); // 0=sun,1=mon...
-  const daysToMon = dow === 1 ? 0 : (8 - dow) % 7;
-  d.setDate(1 + daysToMon + n * 7);
-  return d;
-}
-
-// Devuelve el lunes que le corresponde a un slot dentro del mes (rY, rM).
-//  - day1:true → lunes de la semana que CONTIENE el día 1 de un mes, elegido
-//                con day1Offset (0 = el propio rM, 1 = el mes siguiente).
-//                Esa semana siempre existe, así que la tarea nunca desaparece.
-//  - resto     → el lunes de su índice, o null si ese índice no existe.
-function slotMonday(rY, rM, w) {
-  if (w.day1) {
-    const d1 = new Date(rY, rM + (w.day1Offset || 0), 1);
-    const back = (d1.getDay() + 6) % 7;
-    d1.setDate(d1.getDate() - back);
-    return d1;
-  }
-  const mondays = [];
-  for (let i = 0; i < 6; i++) {
-    const m = nthMonday(rY, rM, i);
-    if (m.getMonth() === rM) mondays.push(m);
-  }
-  return w.weekIdx < mondays.length ? mondays[w.weekIdx] : null;
-}
-
-// Returns set of week-keys that should be highlighted right now
-// Logic: for each "active cycle" (month objectives currently in planning),
-// find which planning week contains today and return its key.
-// Active cycles: any month M where M-2 or M-1 overlaps with current date.
-function getActiveWeekKeys() {
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const active = new Set();
-
-  // Check cycles for target months: current-1, current, current+1, current+2
-  // (covers all possible overlaps)
-  for (let delta = -1; delta <= 3; delta++) {
-    const targetDate = new Date(today.getFullYear(), today.getMonth() + delta, 1);
-    const tYear = targetDate.getFullYear();
-    const tMonth = targetDate.getMonth(); // 0-based
-
-    WEEKS.forEach(w => {
-      const refMonth = (tMonth + w.mOffset + 12) % 12;
-      const refYear = tYear + Math.floor((tMonth + w.mOffset) / 12) +
-                      (tMonth + w.mOffset < 0 ? 1 : 0) +
-                      (tMonth + w.mOffset < -12 ? 1 : 0);
-
-      // Correct year calculation
-      const absMonth = tMonth + w.mOffset;
-      const corrYear = tYear + Math.floor(absMonth / 12) - (absMonth < 0 && absMonth % 12 !== 0 ? 0 : 0);
-      // Simpler: just use Date arithmetic
-      const refDate = new Date(tYear, tMonth + w.mOffset, 1);
-      const rY = refDate.getFullYear();
-      const rM = refDate.getMonth();
-
-      const weekStart = slotMonday(rY, rM, w);
-      if (!weekStart) return;
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-
-      if (today >= weekStart && today <= weekEnd) {
-        active.add(w.key);
-      }
-    });
-  }
-  return active;
-}
-
-const ACTIVE_WEEK_KEYS = getActiveWeekKeys();
-
-// Estructura fija de partida. Las tareas añadidas desde "+ Nueva tarea"
-// (CUSTOM_TASKS) se fusionan encima de esta base en rebuildAreas().
-const BASE_AREAS = [
-  {
-    id:'centros', label:'Gestión\nCentros', color:'teal',
-    tasks:{
-      s3m2:[{id:'cmo',   title:'Curar Centros MO',            icon:'ti-building-store',week:'Sem 3 · M-2'}],
-      s4m2:[{id:'cdm',   title:'Informar Cambios CdM',        icon:'ti-mail',       week:'Sem 4 · M-2'}],
-      s5m2:[{id:'qcc',   title:'Crear QCC',                   icon:'ti-file-plus',  week:'Sem día 1 · M-2', fase:'M-2'},
-            {id:'bote',  title:'Curar Bote Centros',          icon:'ti-checklist',  week:'Sem día 1 · M-1', fase:'M-1'}],
-      s1m1:[{id:'ccpp',  title:'Mandar Correo Cambios CCPP',  icon:'ti-send',       week:'Sem 1 · M-1'}],
-    }
-  },
-  {
-    id:'oferta', label:'Gestión\nOferta', color:'blue',
-    tasks:{
-      s5m2:[{id:'propventa',title:'Validar Propuesta Venta',  icon:'ti-circle-check',week:'Sem día 1 · M-1', fase:'M-1'}],
-      s1m1:[{id:'planif',   title:'Enviar Planificaciones',   icon:'ti-send',       week:'Sem 1 · M-1'}],
-    }
-  }
-];
-
-// AREAS y TASK_MAP se reconstruyen (rebuildAreas) cada vez que cambian
-// los datos o se añade/borra una tarea personalizada.
-let AREAS = [];
-let TASK_MAP = {};
-
-function rebuildAreas() {
-  AREAS = BASE_AREAS.map(a => ({
-    ...a,
-    tasks: Object.fromEntries(Object.entries(a.tasks).map(([k,v]) => [k, v.map(t => ({...t}))]))
-  }));
-
-  (CUSTOM_TASKS || []).forEach(ct => {
-    const area = AREAS.find(a => a.id === ct.areaId);
-    if (!area) return;
-    if (!area.tasks[ct.weekKey]) area.tasks[ct.weekKey] = [];
-    const w = WEEKS.find(w => w.key === ct.weekKey);
-    area.tasks[ct.weekKey].push({
-      id: ct.id,
-      title: ct.title,
-      icon: ct.icon || 'ti-list',
-      week: w ? `${w.label} · ${w.fase}` : '',
-      custom: true
-    });
-  });
-
-  TASK_MAP = {};
-  AREAS.forEach(a => {
-    Object.values(a.tasks).forEach(arr => arr.forEach(t => {
-      TASK_MAP[t.id] = { ...t, areaColor: a.color, areaLabel: a.label.replace('\n',' ') };
-    }));
-  });
-
-  (EVENTUAL_TASKS || []).forEach(et => {
-    const area = AREAS.find(a => a.id === et.areaId);
-    if (!area) return;
-    TASK_MAP[et.id] = {
-      id: et.id,
-      title: et.title,
-      icon: et.icon || 'ti-list',
-      week: 'Puntual',
-      areaColor: area.color,
-      areaLabel: area.label.replace('\n',' '),
-      custom: true,
-      eventual: true,
-      done: !!et.done
-    };
-  });
-}
-
-// ══════════════════════════════════════════════════════════════
-// CONFIGURACIÓN JSONBIN — instrucciones al final de este mensaje.
-// Pega aquí tu Bin ID una vez creado en jsonbin.io. La Master Key
-// NO se pega aquí: se pide una sola vez con un prompt() y se queda
-// guardada solo en el navegador de quien la introduzca.
-// ══════════════════════════════════════════════════════════════
-const JSONBIN_BIN_ID = '6a96a75ef5f4af5e295be1c3';
-const JSONBIN_CONFIGURED = !!JSONBIN_BIN_ID && !JSONBIN_BIN_ID.startsWith('PON_AQUI');
-
-// Copia de tus tareas actuales, recuperada de tu localStorage anterior.
-// Se usa como respaldo si el bin no está configurado, si falla la conexión,
-// o como semilla la primera vez que sincronices con "Sincronizar".
-const INITIAL_DATA = {
-  "qcc": {
-    "steps": [
+// Catálogo de partida: tus tareas actuales con sus pasos y enlaces.
+// Ninguna lleva fechas todavía: eso lo pones tú desde cada tarea.
+const SEED = [
+  { id:'qcc', areaId:'centros', title:'Crear QCC', icon:'ti-file-plus', sched:null,
+    steps:[
       "Acceder al HTML del QCC de Expansión online",
       "Actualizar los datos del HTML ejecutando la consulta de metabase y exportando en csv",
       "Filtrar por mes y descargar en xlsx. Adjuntar por slack al canal Diario de los Colonialistas",
       "Una vez actualizado por Alberto y Susi, actualizar el HTML, descargar en xlsx y pegar en Drive",
       "Pasar a Maria la descarga completa para que envíe correo a CdM"
     ],
-    "links": [
-      {"name": "HTML QCC Expansión online", "url": "https://pepamiron.github.io/QCCExpansion2026/"},
-      {"name": "Consulta Metabase ", "url": "https://metabase.prod.monline/question/32873-qcc-ntc-nsd-2026"},
-      {"name": "Slack", "url": "https://mercadonaonline.slack.com/archives/C0619RLG49Y"},
-      {"name": "Drive", "url": "https://docs.google.com/spreadsheets/d/1JRqWwX28IF2nfpzE6s7CsMkGVSpJ-TirC_vjXmJ2tK0/edit?gid=0#gid=0"}
-    ]
-  },
-  "propventa": {
-    "steps": [
+    links:[
+      {name:"HTML QCC Expansión online", url:"https://pepamiron.github.io/QCCExpansion2026/"},
+      {name:"Consulta Metabase", url:"https://metabase.prod.monline/question/32873-qcc-ntc-nsd-2026"},
+      {name:"Slack", url:"https://mercadonaonline.slack.com/archives/C0619RLG49Y"},
+      {name:"Drive", url:"https://docs.google.com/spreadsheets/d/1JRqWwX28IF2nfpzE6s7CsMkGVSpJ-TirC_vjXmJ2tK0/edit?gid=0#gid=0"}
+    ] },
+  { id:'bote', areaId:'centros', title:'Curar Bote Centros', icon:'ti-checklist', sched:null,
+    steps:[
+      "Activar el servicio de NTC y NSD de las aperturas",
+      "NTC = fecha inicio mismo día de la apertura y se debe cargar mínimo 15 días antes del 1er día de formación",
+      "NSD = fecha inicio un día antes de la apertura y se debe cargar mínimo 2 días antes de esa fecha",
+      "En caso de que las tiendas estén activas en TC, avisadles para que carguen la baja"
+    ],
+    links:[
+      {name:"Bote Centro", url:"https://vhmcapfi100lb.sap.mercadona.com/sap/bc/ui2/flp"}
+    ] },
+  { id:'cmo', areaId:'centros', title:'Curar Centros MO', icon:'ti-building-store', sched:null,
+    steps:[
+      "Cargar en centros MO los cambios de CP o de modelo",
+      "Actualizar en Drive las planificaciones realizadas",
+      "Contrastar que los datos de Centros MO y Drive coinciden"
+    ],
+    links:[
+      {name:"CentrosMo", url:"https://centrosmo.prod.monline/centers/vlc1/"},
+      {name:"Drive planificaciones", url:"https://docs.google.com/spreadsheets/d/1DgJvulxq9bI_4owljXm-yj3SKVKEs9PL/edit?gid=1858854927#gid=1858854927"},
+      {name:"Comparador", url:"https://pepamiron.github.io/COMPARADORES/"}
+    ] },
+  { id:'cdm', areaId:'centros', title:'Informar Cambios CdM', icon:'ti-mail', sched:null,
+    steps:[
+      "Acceder a Control de cambios",
+      "Actualizar los datos por si hubieran cambiado, ejecutando la consulta de metabase",
+      "Seleccionar el mes a informar y solo Tiendas",
+      "Verificar que todos los datos de la tabla son ok",
+      "Exportar a Excel y pegar en Plantilla Envío (PlantillaCorreosNTC.xlxm) en la pestaña Datos",
+      "Ejecutar la consulta de cambios área reparto del mes a informar y exportar a json. Mover el documento a la ruta del enlace Generar Mapas con nombre mes Mmmm.json",
+      "Desde \"Generar_pdfs.bat\" generar todos los mapas de Área de Servicio del mes a enviar",
+      "Generar las planificaciones anuales del mes a enviar, exportar a pdf y guardar los pdfs en la misma carpeta de los mapas",
+      "Copiar la ruta de los pdf y pegar en la plantilla de envio, pestaña Datos",
+      "Ejecutar correos. Se generan borradores en Outlook"
+    ],
+    links:[
+      {name:"Control de cambios", url:"https://pepamiron.github.io/control-cambios-ntc/"},
+      {name:"Consulta Control de cambios", url:"https://metabase.prod.monline/question/32892-control-de-cambios"},
+      {name:"Plantilla de Envio", url:"https://mercadona365-my.sharepoint.com/personal/pmiron_mercadona_es/Documents/Documents/Venta y planificación"},
+      {name:"Consulta metabase areas reparto", url:"https://metabase.prod.monline/question/33813-consulta-areas-reparto-para-generar-mapas-pdf?mes=&tipo_centro="},
+      {name:"Drive control de cambios", url:"https://docs.google.com/spreadsheets/d/1pWK-9kQTLQieeBpAr084azxtcuhyO0mc11PNrrQfMMk/edit?gid=0#gid=0"}
+    ] },
+  { id:'ccpp', areaId:'centros', title:'Mandar Correo Cambios CCPP', icon:'ti-send', sched:null,
+    steps:[
+      "Acceder a la consulta y exportar a Excel",
+      "Enviar por correo"
+    ],
+    links:[
+      {name:"Consulta Movimientos", url:"https://metabase.prod.monline/question/33103-tabla-movimientos-cp-mensuales-para-enviar-por-correo"},
+      {name:"Guardar excel", url:"C:\\Users\\pmiron\\OneDrive - Mercadona\\Documents\\Venta y planificación\\Cambios codigos postales"}
+    ] },
+  { id:'propventa', areaId:'oferta', title:'Validar Propuesta Venta', icon:'ti-circle-check', sched:null,
+    steps:[
       "Negocio publica en canal slack las replanificaciones",
       "Contactar con las tiendas implicadas e informar de los cambios a través de la vista preliminar en los meses afectados",
       "Rellenar las Subidas Oferta en el Drive de Merca Oferta",
       "Informar por slack de la cumplimentación"
     ],
-    "links": [
-      {"name": "Subidas Oferta", "url": "https://docs.google.com/spreadsheets/d/1DhX8natid7bkb3UljV7oIawNYdEyMsxTZC3l8EqvvKE/edit?gid=919618989#gid=919618989"},
-      {"name": "Venta Mo", "url": "https://ventamo.prod.monline/?origin=&month=10&year=2025&day=21"}
-    ]
-  },
-  "planif": {
-    "steps": [
-      "Negocio publica el entregable ",
+    links:[
+      {name:"Subidas Oferta", url:"https://docs.google.com/spreadsheets/d/1DhX8natid7bkb3UljV7oIawNYdEyMsxTZC3l8EqvvKE/edit?gid=919618989#gid=919618989"},
+      {name:"Venta Mo", url:"https://ventamo.prod.monline/"}
+    ] },
+  { id:'planif', areaId:'oferta', title:'Enviar Planificaciones', icon:'ti-send', sched:null,
+    steps:[
+      "Negocio publica el entregable",
       "Abrir el drive y pegar la nueva oferta. Ejecutar Scripts y descargar en pdf",
       "Abrir enlace envío planificaciones. Pegar las rutas de los pdf descargados y ejecutar envio"
     ],
-    "links": [
-      {"name": "Drive Planificaciones", "url": "https://docs.google.com/spreadsheets/d/19h8h3Ni8Dq46Ned0wguPYaR305yclw4C2yqGt0Z0mto/edit?gid=2114995375#gid=2114995375"},
-      {"name": "Envio Planificaciones", "url": "C:\\Users\\pmiron\\OneDrive - Mercadona\\Documentos\\Cambios Planificación.xlsm"},
-      {"name": "", "url": "C:\\Users\\pmiron\\OneDrive - Mercadona\\Documents\\Venta y planificación\\generador"}
-    ]
-  },
-  "cmo": {
-    "steps": [
-      "Cargar en centros MO los cambios de CP o de modelo",
-      "Actualizar en Drive las planificaciones realizadas",
-      "Contrastar que los datos de Centros MO y Drive coinciden"
-    ],
-    "links": [
-      {"name": "CentrosMo", "url": "https://centrosmo.prod.monline/centers/vlc1/"},
-      {"name": "Drive planificaciones", "url": "https://docs.google.com/spreadsheets/d/1DgJvulxq9bI_4owljXm-yj3SKVKEs9PL/edit?gid=1858854927#gid=1858854927"},
-      {"name": "Comparador", "url": "https://pepamiron.github.io/COMPARADORES/"}
-    ]
-  },
-  "bote": {
-    "steps": [
-      "Activar el servicio de NTC y NSD de las aperturas",
-      "NTC = fecha inicio mismo día de la apertura y se debe cargar mínimo 15 días antes del 1er día de formación ",
-      "NSD = fecha inicio un día antes de la apertura y se debe cargar mínimo 2 días antes de esa fecha",
-      "En caso de que las tiendas estén activas en TC, avisadles para que carguen la baja"
-    ],
-    "links": [
-      {"name": "Bote Centro", "url": "https://vhmcapfi100lb.sap.mercadona.com/sap/bc/ui2/flp#MDTE0118SemObj-display&/?sap-iapp-state--history=TASV0PLGKKXGZRBCYHOOI4MK15LXWADE8N3XXZYFQ&sap-iapp-state=AS5PK6NZ4GEBJO5BZN0DY21GVS74JAB25XBRYB9A"}
-    ]
-  },
-  "ccpp": {
-    "steps": [
-      "Acceder a la consulta y exportar a Excel",
-      "Enviar por correo"
-    ],
-    "links": [
-      {"name": "Consulta Movimientos", "url": "https://metabase.prod.monline/question/33103-tabla-movimientos-cp-mensuales-para-enviar-por-correo"},
-      {"name": "Guardar excel", "url": "C:\\Users\\pmiron\\OneDrive - Mercadona\\Documents\\Venta y planificación\\Cambios codigos postales"}
-    ]
-  },
-  "cdm": {
-    "steps": [
-      "Acceder a Control de cambios ",
-      "Actualizar los datos por si hubieran cambiado, ejecutando la consulta de metabase",
-      "Seleccionar el mes a informar y solo Tiendas",
-      "Verificar que todos los datos de la tabla son ok",
-      "Exportar a Excel y pegar en Plantilla Envío (PlantillaCorreosNTC.xlxm) en la pestaña  Datos",
-      "Ejecutar la consulta de cambios área reparto del mes a informar y exportar a json. Mover el documento a la ruta del enlace Generar Mapas con nombre mes Mmmm.json",
-      "Desde \"Generar_pdfs.bat\" generar todos los mapas de Área de Servicio del mes a enviar",
-      "Generar las planificaciones anuales del mes a enviar, exportar a pdf y guardar los pdfs en la misma carpeta de los mapas",
-      "Copiar la ruta de los pdf   y pegar en la plantilla de envio, pestaña Datos",
-      "Ejecutar correos. Se generan borradores en Outlook"
-    ],
-    "links": [
-      {"name": "Control de cambios", "url": "https://pepamiron.github.io/control-cambios-ntc/"},
-      {"name": "Consulta Control de cambios", "url": "https://metabase.prod.monline/question/32892-control-de-cambios"},
-      {"name": "Plantilla de Envio", "url": "https://mercadona365-my.sharepoint.com/personal/pmiron_mercadona_es/Documents/Documents/Venta y planificación"},
-      {"name": "Consulta metabese areas reparto", "url": "https://metabase.prod.monline/question/33813-consulta-areas-reparto-para-generar-mapas-pdf?mes=&tipo_centro="},
-      {"name": "Generar Mapas ", "url": "https://mercadona365-my.sharepoint.com/:f:/g/personal/pmiron_mercadona_es/IgB4fHrN9VfCQLSIPodVoSI1Ad13dcco2E0o5UzNcFtbVyY?e=0pjE36"},
-      {"name": "Drive control de cambios", "url": "https://docs.google.com/spreadsheets/d/1pWK-9kQTLQieeBpAr084azxtcuhyO0mc11PNrrQfMMk/edit?gid=0#gid=0"}
-    ]
-  }
-};
+    links:[
+      {name:"Drive Planificaciones", url:"https://docs.google.com/spreadsheets/d/19h8h3Ni8Dq46Ned0wguPYaR305yclw4C2yqGt0Z0mto/edit?gid=2114995375#gid=2114995375"},
+      {name:"Envio Planificaciones", url:"C:\\Users\\pmiron\\OneDrive - Mercadona\\Documentos\\Cambios Planificación.xlsm"}
+    ] }
+];
 
-const LS_KEY = 'mco_planning_v2';
-const LS_MASTERKEY = 'mco_planning_jsonbin_masterkey';
-
-function loadCachedRaw() {
-  try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
-}
-
-// Acepta tanto el formato antiguo (objeto plano {taskId: {steps,links}})
-// como el nuevo ({data:{...}, customTasks:[...], eventualTasks:[...], quickLinks:[...]}) —
-// así los bins ya existentes siguen funcionando sin migración manual.
-function normalizePayload(raw) {
-  if (raw && typeof raw === 'object' && ('data' in raw || 'customTasks' in raw || 'eventualTasks' in raw || 'quickLinks' in raw)) {
-    return {
-      data: raw.data || {},
-      customTasks: raw.customTasks || [],
-      eventualTasks: raw.eventualTasks || [],
-      quickLinks: raw.quickLinks || []
-    };
-  }
-  return { data: raw || {}, customTasks: [], eventualTasks: [], quickLinks: [] };
-}
-
-function cachePayload() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS, eventualTasks: EVENTUAL_TASKS, quickLinks: QUICK_LINKS })); } catch {}
-}
-
-const _cached = normalizePayload(loadCachedRaw());
-const _hasCache = !!loadCachedRaw();
-let DATA = _hasCache ? _cached.data : INITIAL_DATA; // { [taskId]: { steps: [...], links: [{name,url},...] } }
-let CUSTOM_TASKS = _hasCache ? _cached.customTasks : [];
-let EVENTUAL_TASKS = _hasCache ? _cached.eventualTasks : [];
-let QUICK_LINKS = _hasCache ? _cached.quickLinks : [];
-
-function getTaskData(id) {
-  return DATA[id] || { steps: [], links: [] };
-}
-
+let TASKS = loadTasks();
+let APPS = loadApps();
+let TASK_MAP = {};
 let activeId = null;
-let panelSteps = [];
-let panelLinks = [];
-let currentView = 'rutinario';
+let currentView = 'calendario';
+let calMode = 'mes';
+let calRef = new Date();
 
-// ── Render timeline ─────────────────────────────────────────────
-
-function isTaskDoneNow(taskId, weekKey) {
-  const d = getTaskData(taskId);
-  if (!d.doneWeekStart) return false;
-  const w = WEEKS.find(x => x.key === weekKey);
-  if (!w) return false;
-  const cur = getSlotWeekStart(w);
-  if (!cur) return false;
-  return d.doneWeekStart === cur.toISOString().slice(0,10);
+function loadTasks() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Antes se guardaba solo el array de tareas; ahora {tasks, apps}
+      const arr = Array.isArray(parsed) ? parsed : parsed.tasks;
+      if (Array.isArray(arr) && arr.length) {
+        // Las guardadas con el tipo antiguo "eventual" pasan a ser anuales
+        arr.forEach(t => {
+          if (t.sched && t.sched.tipo === 'eventual') t.sched.tipo = 'anual';
+        });
+        return arr;
+      }
+    }
+  } catch (e) {}
+  return SEED.map(t => ({ ...t, steps: [...t.steps], links: t.links.map(l => ({...l})) }));
 }
 
-function toggleRoutineDone(taskId, weekKey, ev) {
-  ev.stopPropagation();
-  const w = WEEKS.find(x => x.key === weekKey);
-  const cur = w ? getSlotWeekStart(w) : null;
-  const key = cur ? cur.toISOString().slice(0,10) : null;
-  const d = DATA[taskId] || { steps: [], links: [] };
-  const wasDone = key && d.doneWeekStart === key;
-  d.doneWeekStart = (wasDone || !key) ? null : key;
-  DATA[taskId] = d;
-  cachePayload();
-  renderCurrentView();
-  syncToJsonBin();
+function loadApps() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) && Array.isArray(parsed.apps)) return parsed.apps;
+    }
+    // Primera vez: si el planning por semanas está en este mismo navegador,
+    // se reutilizan sus enlaces para no tener que volver a escribirlos.
+    const viejo = localStorage.getItem('mco_planning_v2');
+    if (viejo) {
+      const p = JSON.parse(viejo);
+      if (p && Array.isArray(p.quickLinks)) return p.quickLinks.map(l => ({...l}));
+    }
+  } catch (e) {}
+  return [];
 }
 
-function toggleEventualDone(id, ev) {
-  ev.stopPropagation();
-  const t = EVENTUAL_TASKS.find(x => x.id === id);
-  if (!t) return;
-  t.done = !t.done;
-  cachePayload();
-  rebuildAreas();
-  renderCurrentView();
-  syncToJsonBin();
+function save() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ tasks: TASKS, apps: APPS }));
+    setStatus('ok', 'Guardado');
+  } catch (e) {
+    setStatus('err', 'No se pudo guardar en este navegador');
+  }
 }
 
-function taskCardHTML(task, color, weekKey) {
-  const d = getTaskData(task.id);
-  const hasSteps = d.steps && d.steps.filter(s=>s.trim()).length > 0;
-  const hasLinks = d.links && d.links.filter(l=>l.url.trim()).length > 0;
-  const isActive = activeId === task.id;
-  const isDone = isTaskDoneNow(task.id, weekKey);
-  return `
-    <div class="task-card ${color}${isActive?' active':''}${isDone?' done':''}" onclick="openPanel('${task.id}')" id="card-${task.id}">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:4px;">
-        <div class="task-title"><i class="ti ${task.icon}"></i>${task.title}</div>
-        <div style="display:flex; align-items:center; gap:4px;">
-          ${task.fase ? `<span class="card-fase ${task.fase === 'M-1' ? 'm1' : 'm2'}" title="Se trabaja con esta antelación">${task.fase}</span>` : ''}
-          <div class="task-check" onclick="toggleRoutineDone('${task.id}','${weekKey}', event)" title="Marcar como hecho esta semana">
-            <i class="ti ${isDone ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
-          </div>
+function setStatus(kind, txt) {
+  const el = document.getElementById('status');
+  el.className = 'status' + (kind ? ' ' + kind : '');
+  document.getElementById('status-txt').textContent = txt;
+}
+
+function rebuildMap() {
+  TASK_MAP = {};
+  TASKS.forEach(t => { TASK_MAP[t.id] = t; });
+}
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Clase de color según la antelación con la que se trabaja la tarea
+function antClass(s) {
+  if (!s) return '';
+  if (s.tipo === 'anual') return 'ev';
+  return Number(s.offset) >= 2 ? 'a2' : 'a1';
+}
+function antLabel(s) {
+  if (!s) return '';
+  if (s.tipo === 'anual') return 'Anual';
+  const n = Number(s.offset);
+  return n === 0 ? 'Mismo mes' : (n === 1 ? 'M+1' : 'M+' + n);
+}
+
+// Texto legible de la programación de una tarea
+function schedText(s) {
+  if (!s) return 'Sin fechas';
+  if (s.tipo === 'anual') {
+    if (!s.fecha) return 'Sin fechas';
+    const a = new Date(s.fecha + 'T00:00:00');
+    const b = new Date((s.fechaFin || s.fecha) + 'T00:00:00');
+    const dI = a.getDate(), mI = MES_CORTO[a.getMonth()];
+    const dF = b.getDate(), mF = MES_CORTO[b.getMonth()];
+    if (dI === dF && a.getMonth() === b.getMonth()) return `Cada año, el ${dI} ${mI}`;
+    if (a.getMonth() === b.getMonth()) return `Cada año, del ${dI} al ${dF} ${mI}`;
+    return `Cada año, del ${dI} ${mI} al ${dF} ${mF}`;
+  }
+  const r = s.dayFrom === s.dayTo ? ('El día ' + s.dayFrom) : ('Del ' + s.dayFrom + ' al ' + s.dayTo);
+  const n = Number(s.offset);
+  const para = n === 0 ? 'para el mes en curso' : (n === 1 ? 'para el mes siguiente' : 'para dentro de ' + n + ' meses');
+  return r + ' · ' + para;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CATÁLOGO
+// ══════════════════════════════════════════════════════════════
+function renderCatalogo() {
+  const wrap = document.getElementById('view-catalogo');
+  wrap.innerHTML = AREAS.map(a => {
+    const list = TASKS.filter(t => t.areaId === a.id);
+    const cards = list.length
+      ? `<div class="cards">${list.map(t => cardHTML(t, a)).join('')}</div>`
+      : `<p class="empty">Todavía no hay tareas en este grupo.</p>`;
+    return `
+      <div class="area">
+        <div class="area-head">
+          <span class="area-dot ${a.color}"></span>
+          <span class="area-name">${esc(a.label)}</span>
+          <span class="area-count">${list.length} ${list.length === 1 ? 'tarea' : 'tareas'}</span>
         </div>
+        ${cards}
+      </div>`;
+  }).join('');
+}
+
+function cardHTML(t, a) {
+  const s = t.sched;
+  const cls = antClass(s);
+  return `
+    <div class="card ${a.color}" onclick="openPanel('${t.id}')">
+      <div class="card-top">
+        <div class="card-title"><i class="ti ${esc(t.icon)}"></i>${esc(t.title)}</div>
+        ${s ? `<span class="tag-ant ${cls}">${esc(antLabel(s))}</span>` : ''}
       </div>
-      <div class="card-meta">
-        ${hasSteps ? `<span class="card-badge has-steps"><i class="ti ti-list-check"></i>${d.steps.filter(s=>s.trim()).length} pasos</span>` : ''}
-        ${hasLinks ? `<span class="card-badge has-links"><i class="ti ti-link"></i>${d.links.filter(l=>l.url.trim()).length} enlaces</span>` : ''}
-        ${!hasSteps && !hasLinks ? `<span class="card-badge"><i class="ti ti-click"></i>clic para editar</span>` : ''}
+      <div class="sched-line ${s ? '' : 'none'}">
+        <i class="ti ${s ? 'ti-calendar-event' : 'ti-calendar-off'}"></i>${esc(schedText(s))}
+      </div>
+      <div class="badges">
+        ${t.steps.length ? `<span class="badge steps"><i class="ti ti-list-numbers"></i>${t.steps.length} pasos</span>` : ''}
+        ${t.links.length ? `<span class="badge links"><i class="ti ti-link"></i>${t.links.length} enlaces</span>` : ''}
       </div>
     </div>`;
 }
 
-function cellHTML(tasks, color, weekKey) {
-  if (!tasks || !tasks.length) return `<div class="cell-empty"></div>`;
-  return `<div>${tasks.map(t => taskCardHTML(t, color, weekKey)).join('')}</div>`;
-}
-
-function renderCurrentView() {
-  if (currentView === 'puntual') renderEventualView();
-  else if (currentView === 'enlaces') renderEnlacesView();
-  else renderTimeline();
-}
-
-function switchView(view) {
-  currentView = view;
-  ['rutinario','puntual','enlaces'].forEach(v => {
-    document.getElementById('tab-'+v).classList.toggle('active', v === view);
-    document.getElementById('view-'+v).style.display = v === view ? '' : 'none';
+// ══════════════════════════════════════════════════════════════
+// CALENDARIO
+// Una tarea mensual con rango dayFrom–dayTo aparece en TODOS los meses.
+// Su antelación dice a qué mes sirve esa ocurrencia.
+// ══════════════════════════════════════════════════════════════
+function occurrencesIn(year, month) {
+  const total = daysInMonth(year, month);
+  const out = [];
+  TASKS.forEach(t => {
+    const s = t.sched;
+    if (!s) return;
+    if (s.tipo === 'anual') {
+      if (!s.fecha) return;
+      // Solo cuentan día y mes: el año guardado se ignora y la tarea
+      // se repite todos los años en esas mismas fechas.
+      const a = new Date(s.fecha + 'T00:00:00');
+      const b = new Date((s.fechaFin || s.fecha) + 'T00:00:00');
+      const mesI = a.getMonth(), diaI = a.getDate();
+      const mesF = b.getMonth(), diaF = b.getDate();
+      // Si el final cae antes que el inicio, el rango cruza fin de año
+      const cruzaAnio = (mesF < mesI) || (mesF === mesI && diaF < diaI);
+      const mIni = new Date(year, month, 1);
+      const mFin = new Date(year, month, total);
+      // Se prueban el año anterior y el actual: así un rango que empieza
+      // en diciembre se sigue viendo en el enero siguiente.
+      [year - 1, year].forEach(cy => {
+        const ini = new Date(cy, mesI, Math.min(diaI, daysInMonth(cy, mesI)));
+        const fy = cruzaAnio ? cy + 1 : cy;
+        const fin = new Date(fy, mesF, Math.min(diaF, daysInMonth(fy, mesF)));
+        if (fin < mIni || ini > mFin) return;
+        out.push({
+          task: t,
+          from: ini < mIni ? 1 : ini.getDate(),
+          to:   fin > mFin ? total : fin.getDate(),
+          sched: s
+        });
+      });
+      return;
+    }
+    const from = Math.min(Math.max(1, Number(s.dayFrom) || 1), total);
+    const to = Math.min(Math.max(from, Number(s.dayTo) || from), total);
+    out.push({ task: t, from, to, sched: s });
   });
-  renderCurrentView();
+  // Primero las que empiezan antes; a igual inicio, las más largas arriba
+  out.sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
+  return out;
 }
 
-function renderTimeline() {
-  const app = document.getElementById('app');
+// Mes al que sirve una ocurrencia de un mes dado
+function targetMonth(year, month, s) {
+  const n = s.tipo !== 'mensual' ? 0 : Number(s.offset) || 0;
+  const d = new Date(year, month + n, 1);
+  return MES_CORTO[d.getMonth()] + (d.getFullYear() !== year ? ' ' + d.getFullYear() : '');
+}
 
-  function weekCellHTML(w) {
-    const isCurrent = ACTIVE_WEEK_KEYS.has(w.key);
-    const cls = isCurrent ? `week-cell ${w.cls} current` : `week-cell ${w.cls}`;
-    const dateRange = getWeekDateRange(w);
-    const sub = [w.fase, dateRange].filter(Boolean).join(' · ');
-    return `<div class="${cls}">${w.label}${sub ? `<span class="fase-tag">${sub}</span>` : ''}</div>`;
+function monthBlockHTML(year, month, compact) {
+  const total = daysInMonth(year, month);
+  const occ = occurrencesIn(year, month);
+  const today = new Date();
+  const rows = occ.length;
+
+  let head = '';
+  for (let d = 1; d <= total; d++) {
+    const date = new Date(year, month, d);
+    const dow = date.getDay();
+    const isWe = dow === 0 || dow === 6;
+    const isToday = sameDay(date, today);
+    const cls = 'day-h' + (isToday ? ' today' : (isWe ? ' we' : ''));
+    const show = compact ? (d % 5 === 0 || d === 1 ? d : '') : d;
+    head += `<div class="${cls}" style="grid-column:${d}; grid-row:1;">${show}</div>`;
   }
 
-  const w5 = WEEKS.slice(0,5).map(weekCellHTML).join('');
-  const w3 = WEEKS.slice(5).map(weekCellHTML).join('');
-
-  const weeksRow = `<div class="weeks-row">
-    <div class="label-spacer"></div>${w5}
-    <div class="divider-head"></div>${w3}
-  </div>`;
-
-  const areaRows = AREAS.map((area,idx) => {
-    const cols5 = WEEKS.slice(0,5).map(w=>cellHTML(area.tasks[w.key],area.color,w.key)).join('');
-    const cols3 = WEEKS.slice(5).map(w=>cellHTML(area.tasks[w.key],area.color,w.key)).join('');
-    const names = area.label.split('\n');
-    const sep = idx < AREAS.length-1 ? `<div class="sep-row"></div>` : '';
-    return `<div class="area-row">
-      <div class="area-label">
-        <div class="area-dot-label">
-          <div class="area-dot dot-${area.color}"></div>
-          <span class="area-name">${names.join('<br>')}</span>
-        </div>
-      </div>
-      ${cols5}<div class="area-divider"></div>${cols3}
-    </div>${sep}`;
+  const bars = occ.map((o, i) => {
+    const s = o.sched;
+    const label = s.tipo !== 'mensual'
+      ? o.task.title
+      : `${o.task.title} · ${targetMonth(year, month, s)}`;
+    return `<div class="bar ${antClass(s)}" style="grid-column:${o.from} / ${o.to + 1}; --row:${i + 2};"
+      onclick="openPanel('${o.task.id}')" title="${esc(label)} — ${esc(schedText(s))}">
+      <i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span></div>`;
   }).join('');
 
-  app.innerHTML = weeksRow + areaRows;
-}
+  const grid = `<div class="scale ${compact ? '' : 'mes'}" style="grid-template-columns:repeat(${total},minmax(0,1fr)); grid-template-rows:auto repeat(${rows},auto);">${head}${bars}</div>`;
+  const vacio = `<p class="empty">Ninguna tarea programada en este mes.</p>`;
 
-// Devuelve el lunes de inicio de la ocurrencia actual de este slot de semana
-// (misma ventana -7..60 días que se usa para la etiqueta de fecha), o null
-// si esa ocurrencia no cae cerca de hoy.
-function getSlotWeekStart(w) {
-  const today = new Date();
-  for (let delta = -1; delta <= 3; delta++) {
-    const refDate = new Date(today.getFullYear(), today.getMonth() + delta + w.mOffset, 1);
-    const rY = refDate.getFullYear();
-    const rM = refDate.getMonth();
-    const weekStart = slotMonday(rY, rM, w);
-    if (!weekStart) continue;
-    const diffDays = Math.round((weekStart - today) / 86400000);
-    if (diffDays >= -7 && diffDays <= 60) return weekStart;
-  }
-  return null;
-}
-
-// Returns "2 jun" style short date range for a week slot, for current cycle
-function getWeekDateRange(w) {
-  const start = getSlotWeekStart(w);
-  if (!start) return null;
-  const fmt = d => `${d.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]}`;
-  return fmt(start);
-}
-
-// ── Vista Puntual ────────────────────────────────────────────────
-
-function eventualCardHTML(t, color) {
-  const d = getTaskData(t.id);
-  const hasSteps = d.steps && d.steps.filter(s=>s.trim()).length > 0;
-  const hasLinks = d.links && d.links.filter(l=>l.url.trim()).length > 0;
-  const isActive = activeId === t.id;
   return `
-    <div class="task-card ${color}${isActive?' active':''}${t.done?' done':''}" onclick="openPanel('${t.id}')" id="card-${t.id}">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:4px;">
-        <div class="task-title"><i class="ti ${t.icon||'ti-list'}"></i>${t.title}</div>
-        <div class="task-check" onclick="toggleEventualDone('${t.id}', event)" title="Marcar como hecha">
-          <i class="ti ${t.done ? 'ti-square-rounded-check-filled' : 'ti-square-rounded'}"></i>
-        </div>
+    <div class="month">
+      <div class="month-name">${MESES[month]} ${year}
+        <span class="n-tasks">${occ.length ? occ.length + (occ.length === 1 ? ' tarea' : ' tareas') : ''}</span>
       </div>
-      <div class="card-meta">
-        ${hasSteps ? `<span class="card-badge has-steps"><i class="ti ti-list-check"></i>${d.steps.filter(s=>s.trim()).length} pasos</span>` : ''}
-        ${hasLinks ? `<span class="card-badge has-links"><i class="ti ti-link"></i>${d.links.filter(l=>l.url.trim()).length} enlaces</span>` : ''}
-        ${!hasSteps && !hasLinks ? `<span class="card-badge"><i class="ti ti-click"></i>clic para editar</span>` : ''}
-      </div>
+      ${rows ? grid : vacio}
     </div>`;
 }
 
-function renderEventualView() {
-  const wrap = document.getElementById('eventual-app');
-  const html = AREAS.map((area, idx) => {
-    const tasks = (EVENTUAL_TASKS || []).filter(t => t.areaId === area.id);
-    const sorted = [...tasks].sort((a,b) => (a.done === b.done) ? 0 : (a.done ? 1 : -1));
-    const cardsHTML = sorted.length
-      ? `<div class="eventual-cards">${sorted.map(t => eventualCardHTML(t, area.color)).join('')}</div>`
-      : `<div class="eventual-empty">Sin tareas puntuales</div>`;
-    const names = area.label.split('\n');
-    const sep = idx < AREAS.length-1 ? `<div class="sep-row"></div>` : '';
-    return `<div class="area-row" style="grid-template-columns:130px 1fr;">
-      <div class="area-label">
-        <div class="area-dot-label">
-          <div class="area-dot dot-${area.color}"></div>
-          <span class="area-name">${names.join('<br>')}</span>
-        </div>
-      </div>
-      ${cardsHTML}
-    </div>${sep}`;
-  }).join('');
-  wrap.innerHTML = html;
+function renderCalendario() {
+  const body = document.getElementById('cal-body');
+  const title = document.getElementById('cal-title');
+  const y = calRef.getFullYear(), m = calRef.getMonth();
+
+  // Solo la vista de mes usa todo el ancho; el resto se queda en 1500 px
+  aplicarAncho();
+
+  const programadas = TASKS.filter(t => t.sched).length;
+  if (!programadas) {
+    title.textContent = '';
+    body.innerHTML = `
+      <div class="cal-empty">
+        <strong>El calendario está vacío</strong>
+        Abre una tarea en el catálogo y dile en qué días se hace.<br>
+        Aparecerá aquí, repetida en todos los meses.
+      </div>`;
+    return;
+  }
+
+  if (calMode === 'anio') {
+    title.textContent = y;
+    // Tres bloques por fila: cada fila es un trimestre
+    body.innerHTML = [0, 3, 6, 9].map(ini =>
+      `<div class="trimestre">${
+        [0, 1, 2].map(k => monthBlockHTML(y, ini + k, true)).join('')
+      }</div>`
+    ).join('');
+    return;
+  }
+
+  if (calMode === 'dia') {
+    const d = calRef.getDate();
+    title.textContent = `${d} de ${MESES[m]} de ${y}`;
+    const hoy = occurrencesIn(y, m).filter(o => d >= o.from && d <= o.to);
+    body.innerHTML = hoy.length
+      ? `<div class="day-list">${hoy.map(o => {
+          const s = o.sched;
+          const label = s.tipo !== 'mensual' ? o.task.title : `${o.task.title} · ${targetMonth(y, m, s)}`;
+          return `<div class="bar ${antClass(s)}" style="grid-column:auto; --row:auto; padding:9px 12px; font-size:13px;"
+            onclick="openPanel('${o.task.id}')">
+            <i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span>
+            <span style="margin-left:auto; font-size:11px; opacity:.8; flex-shrink:0;">${esc(schedText(s))}</span></div>`;
+        }).join('')}</div>`
+      : `<div class="cal-empty"><strong>Nada previsto para este día</strong>Usa las flechas para moverte.</div>`;
+    return;
+  }
+
+  if (calMode === 'semana') {
+    const { ini, fin } = weekRange(calRef);
+    title.textContent = tituloSemana(ini, fin);
+    body.innerHTML = weekBlockHTML(ini, fin);
+    return;
+  }
+
+  title.textContent = `${MESES[m]} ${y}`;
+  body.innerHTML = monthWeeksHTML(y, m);
 }
 
-// ── Vista Enlaces ────────────────────────────────────────────────
+// ── Vista de año: matriz de tareas por meses ─────────────────────
+// Una fila por tarea y doce columnas de mes. El nombre se lee una sola vez,
+// así que nunca se corta, y cada celda sitúa la tarea dentro de su mes:
+// pegada a la izquierda es principio de mes, a la derecha final.
+function yearMatrixHTML(year) {
+  const hoy = new Date();
+  const mesHoy = hoy.getFullYear() === year ? hoy.getMonth() : -1;
+
+  // Ocurrencias de cada mes, calculadas una vez
+  const porMes = Array.from({ length: 12 }, (_, m) => occurrencesIn(year, m));
+
+  let head = `<div></div>` + MES_CORTO.map((mc, m) =>
+    `<div class="ym-head${m === mesHoy ? ' hoy' : ''}">${mc}</div>`).join('');
+
+  let filas = '';
+  AREAS.forEach(a => {
+    const tareas = TASKS.filter(t => t.areaId === a.id && t.sched);
+    if (!tareas.length) return;
+    filas += `<div class="ym-area"><span class="area-dot ${a.color}"></span>${esc(a.label)}</div>`;
+
+    tareas.forEach(t => {
+      filas += `<div class="ym-name" onclick="openPanel('${t.id}')" title="${esc(t.title)} — ${esc(schedText(t.sched))}">
+        <i class="ti ${esc(t.icon)}"></i><span class="bar-txt">${esc(t.title)}</span></div>`;
+
+      for (let m = 0; m < 12; m++) {
+        const total = daysInMonth(year, m);
+        const marcas = porMes[m].filter(o => o.task.id === t.id).map(o => {
+          const izq = ((o.from - 1) / total) * 100;
+          const ancho = ((o.to - o.from + 1) / total) * 100;
+          return `<span class="ym-mark ${antClass(o.sched)}" style="left:${izq}%; width:${ancho}%;"></span>`;
+        }).join('');
+        const mesObj = marcas && t.sched.tipo === 'mensual' ? ` · para ${targetMonth(year, m, t.sched)}` : '';
+        filas += `<div class="ym-cell${m === mesHoy ? ' hoy' : ''}" onclick="openPanel('${t.id}')"
+          title="${esc(MESES[m])}${mesObj}">${marcas}</div>`;
+      }
+    });
+  });
+
+  if (!filas) return `<div class="cal-empty"><strong>El calendario está vacío</strong>Abre una tarea en el catálogo y dile en qué días se hace.</div>`;
+
+  return `<div class="month"><div class="ymatrix">${head}${filas}</div></div>`;
+}
+
+// ── Vista de semana ──────────────────────────────────────────────
+// Lunes a domingo. La semana puede caer entre dos meses, así que se
+// recogen las tareas de todos los meses que toca.
+function weekRange(ref) {
+  const ini = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  ini.setDate(ini.getDate() - ((ini.getDay() + 6) % 7));
+  const fin = new Date(ini);
+  fin.setDate(fin.getDate() + 6);
+  return { ini, fin };
+}
+
+function tituloSemana(ini, fin) {
+  if (ini.getMonth() === fin.getMonth()) {
+    return `${ini.getDate()} – ${fin.getDate()} de ${MESES[ini.getMonth()]} ${ini.getFullYear()}`;
+  }
+  const a = `${ini.getDate()} ${MES_CORTO[ini.getMonth()]}`;
+  const b = `${fin.getDate()} ${MES_CORTO[fin.getMonth()]}`;
+  return `${a} – ${b} ${fin.getFullYear()}`;
+}
+
+function occurrencesInWeek(ini, fin) {
+  const out = [];
+  const visto = new Set();
+  // Meses que toca la semana (uno o dos)
+  const cur = new Date(ini.getFullYear(), ini.getMonth(), 1);
+  const last = new Date(fin.getFullYear(), fin.getMonth(), 1);
+  while (cur <= last) {
+    const mY = cur.getFullYear(), mM = cur.getMonth();
+    occurrencesIn(mY, mM).forEach(o => {
+      const a = new Date(mY, mM, o.from);
+      const b = new Date(mY, mM, o.to);
+      if (b < ini || a > fin) return;
+      const clave = o.task.id + '|' + a.getTime() + '|' + b.getTime();
+      if (visto.has(clave)) return;      // evita repetir si la semana cruza meses
+      visto.add(clave);
+      out.push({
+        task: o.task, sched: o.sched,
+        from: Math.max(0, Math.round((a - ini) / 86400000)) + 1,
+        to:   Math.min(6, Math.round((b - ini) / 86400000)) + 1,
+        mesY: mY, mesM: mM
+      });
+    });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  out.sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
+  return out;
+}
+
+const DIAS_SEM = ['lun','mar','mié','jue','vie','sáb','dom'];
+
+// Tira de una semana: 7 columnas con sus barras. mesFoco, si se pasa, atenúa
+// los días que caen fuera de ese mes (se usa al apilar semanas en la vista de mes).
+function weekStripHTML(ini, fin, mesFoco) {
+  const occ = occurrencesInWeek(ini, fin);
+  const today = new Date();
+  const rows = occ.length;
+
+  let fondo = '';
+  let head = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(ini);
+    d.setDate(d.getDate() + i);
+    const fuera = (mesFoco !== undefined && d.getMonth() !== mesFoco);
+    const esHoy = sameDay(d, today);
+
+    // Columna de fondo: recorre la semana entera y ancla las barras a su día
+    fondo += `<div class="col-bg${esHoy ? ' hoy' : (i >= 5 ? ' we' : '')}"
+      style="grid-column:${i + 1}; grid-row:1 / -1;"></div>`;
+
+    const cls = 'day-h sem' + (esHoy ? ' today' : (i >= 5 ? ' we' : '')) + (fuera ? ' fuera' : '');
+    head += `<div class="${cls}" style="grid-column:${i + 1}; grid-row:1;">
+      ${DIAS_SEM[i]} ${d.getDate()}${d.getDate() === 1 ? ' ' + MES_CORTO[d.getMonth()] : ''}</div>`;
+  }
+
+  const bars = occ.map((o, i) => {
+    const s = o.sched;
+    const area = AREAS.find(a => a.id === o.task.areaId);
+    const label = s.tipo !== 'mensual'
+      ? o.task.title
+      : `${o.task.title} · ${targetMonth(o.mesY, o.mesM, s)}`;
+    return `<div class="bar ${antClass(s)}" style="grid-column:${o.from} / ${o.to + 1}; --row:${i + 2};"
+      onclick="openPanel('${o.task.id}')" title="${esc(label)} — ${esc(schedText(s))}">
+      <span class="area-dot ${area ? area.color : 'teal'}"></span><i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span></div>`;
+  }).join('');
+
+  return `<div class="scale semana" style="grid-template-columns:repeat(7,minmax(0,1fr)); grid-template-rows:auto repeat(${rows || 1},auto);">${fondo}${head}${bars}</div>`;
+}
+
+function weekBlockHTML(ini, fin) {
+  const occ = occurrencesInWeek(ini, fin);
+  return `
+    <div class="month">
+      <div class="month-name">${tituloSemana(ini, fin)}
+        <span class="n-tasks">${occ.length ? occ.length + (occ.length === 1 ? ' tarea' : ' tareas') : ''}</span>
+      </div>
+      <div class="sem-fila">${weekStripHTML(ini, fin)}</div>
+      ${occ.length ? '' : `<p class="empty">Ninguna tarea programada esta semana.</p>`}
+    </div>`;
+}
+
+// Vista de mes apilando las semanas, una fila por semana.
+function monthWeeksHTML(year, month) {
+  const occ = occurrencesIn(year, month);
+  const ultimo = new Date(year, month, daysInMonth(year, month));
+  const cur = weekRange(new Date(year, month, 1)).ini;
+
+  const filas = [];
+  while (cur <= ultimo) {
+    const ini = new Date(cur);
+    const fin = new Date(cur);
+    fin.setDate(fin.getDate() + 6);
+    const nOcc = occurrencesInWeek(ini, fin).length;
+    filas.push(`<div class="sem-fila${nOcc ? '' : ' vacia'}">${weekStripHTML(ini, fin, month)}</div>`);
+    cur.setDate(cur.getDate() + 7);
+  }
+
+  return `
+    <div class="month">
+      <div class="month-name">${MESES[month]} ${year}
+        <span class="n-tasks">${occ.length ? occ.length + (occ.length === 1 ? ' tarea' : ' tareas') : ''}</span>
+      </div>
+      ${filas.join('')}
+    </div>`;
+}
+
+function aplicarAncho() {
+  const w = document.querySelector('.wrap');
+  if (w) w.classList.toggle('ancho',
+    currentView === 'calendario' && calMode !== 'dia');
+}
+
+function setCalMode(mode) {
+  calMode = mode;
+  ['dia','semana','mes','anio'].forEach(k => {
+    document.getElementById('cv-' + k).classList.toggle('active', k === mode);
+  });
+  renderCalendario();
+}
+function calStep(dir) {
+  if (calMode === 'dia') calRef.setDate(calRef.getDate() + dir);
+  else if (calMode === 'semana') calRef.setDate(calRef.getDate() + dir * 7);
+  else if (calMode === 'mes') calRef.setMonth(calRef.getMonth() + dir);
+  else calRef.setFullYear(calRef.getFullYear() + dir);
+  renderCalendario();
+}
+function calToday() { calRef = new Date(); renderCalendario(); }
+
+// ══════════════════════════════════════════════════════════════
+// APPS
+// ══════════════════════════════════════════════════════════════
+function renderApps() {
+  const wrap = document.getElementById('apps-grid');
+  if (!APPS.length) {
+    wrap.innerHTML = `<p class="empty">Sin enlaces todavía. Pulsa "Nuevo enlace" para añadir el primero.</p>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="links-grid" id="links-grid">${APPS.map((l, idx) => {
+    const iconHTML = l.icon
+      ? `<img src="${esc(l.icon)}" class="link-card-icon-img" alt="">`
+      : `<i class="ti ti-link"></i>`;
+    return `
+    <div class="link-card" draggable="true" data-idx="${idx}"
+         ondragstart="onLinkDragStart(event, ${idx})"
+         ondragover="onLinkDragOver(event, ${idx})"
+         ondragleave="onLinkDragLeave(event)"
+         ondrop="onLinkDrop(event, ${idx})"
+         ondragend="onLinkDragEnd(event)">
+      <i class="ti ti-grip-vertical link-card-drag"></i>
+      <div class="link-card-name">${iconHTML}${esc(l.name)}</div>
+      <div class="link-card-actions">
+        <a class="link-card-open" href="${esc(l.url)}" target="_blank" rel="noopener" draggable="false"><i class="ti ti-external-link"></i>Abrir</a>
+        <div class="link-card-hover-actions">
+          <button class="link-card-icon-btn" onclick="openLinkModal('${esc(l.id)}')" title="Editar"><i class="ti ti-pencil"></i></button>
+          <button class="link-card-icon-btn danger" onclick="deleteLink('${esc(l.id)}', event)" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
 
 let editingLinkId = null;
 let pendingIconDataUrl = null;
@@ -1193,7 +1280,7 @@ async function onIconFileChange(ev) {
     pendingIconDataUrl = await resizeImageFile(file, 64);
     showLinkIconPreview(pendingIconDataUrl);
   } catch (e) {
-    showToast('No se pudo leer esa imagen');
+    toast('No se pudo leer esa imagen');
   }
 }
 
@@ -1205,20 +1292,18 @@ function clearLinkIcon() {
 
 function openLinkModal(id) {
   editingLinkId = id || null;
-  const link = id ? QUICK_LINKS.find(l => l.id === id) : null;
+  const link = id ? APPS.find(l => l.id === id) : null;
   document.getElementById('lm-heading').textContent = id ? 'Editar enlace' : 'Nuevo enlace';
   document.getElementById('lm-name').value = link ? link.name : '';
   document.getElementById('lm-url').value = link ? link.url : '';
   document.getElementById('lm-icon-file').value = '';
   pendingIconDataUrl = (link && link.icon) ? link.icon : null;
   showLinkIconPreview(pendingIconDataUrl);
-  document.getElementById('link-modal-overlay').classList.add('open');
-  document.getElementById('link-modal').classList.add('open');
+  document.getElementById('link-modal-bg').classList.add('open');
+  document.getElementById('lm-name').focus();
 }
-
 function closeLinkModal() {
-  document.getElementById('link-modal-overlay').classList.remove('open');
-  document.getElementById('link-modal').classList.remove('open');
+  document.getElementById('link-modal-bg').classList.remove('open');
   editingLinkId = null;
   pendingIconDataUrl = null;
 }
@@ -1226,58 +1311,30 @@ function closeLinkModal() {
 function saveLink() {
   const name = document.getElementById('lm-name').value.trim();
   const url = document.getElementById('lm-url').value.trim();
-  if (!name || !url) { showToast('Ponle nombre y enlace'); return; }
+  if (!name || !url) { toast('Ponle nombre y enlace'); return; }
   if (editingLinkId) {
-    const l = QUICK_LINKS.find(x => x.id === editingLinkId);
+    const l = APPS.find(x => x.id === editingLinkId);
     if (l) { l.name = name; l.url = url; l.icon = pendingIconDataUrl || null; }
   } else {
-    QUICK_LINKS.push({ id: 'link_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, url, icon: pendingIconDataUrl || null });
+    APPS.push({
+      id: 'link_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name, url, icon: pendingIconDataUrl || null
+    });
   }
-  cachePayload();
+  save();
   closeLinkModal();
-  renderCurrentView();
-  showToast('Enlace guardado ✓ — sincronizando…');
-  syncToJsonBin();
+  renderApps();
+  toast('Enlace guardado');
 }
 
 function deleteLink(id, ev) {
   if (ev) ev.stopPropagation();
-  if (!confirm('¿Eliminar este enlace?')) return;
-  QUICK_LINKS = QUICK_LINKS.filter(l => l.id !== id);
-  cachePayload();
-  renderCurrentView();
-  showToast('Enlace eliminado ✓ — sincronizando…');
-  syncToJsonBin();
-}
-
-function renderEnlacesView() {
-  const wrap = document.getElementById('enlaces-app');
-  if (!QUICK_LINKS.length) {
-    wrap.innerHTML = `<p class="eventual-empty">Sin enlaces todavía. Pulsa "+ Nuevo enlace" para añadir el primero.</p>`;
-    return;
-  }
-  wrap.innerHTML = `<div class="links-grid" id="links-grid">${QUICK_LINKS.map((l, idx) => {
-    const iconHTML = l.icon
-      ? `<img src="${l.icon}" class="link-card-icon-img" alt="">`
-      : `<i class="ti ti-link"></i>`;
-    return `
-    <div class="link-card" draggable="true" data-link-id="${l.id}" data-idx="${idx}"
-         ondragstart="onLinkDragStart(event, ${idx})"
-         ondragover="onLinkDragOver(event, ${idx})"
-         ondragleave="onLinkDragLeave(event)"
-         ondrop="onLinkDrop(event, ${idx})"
-         ondragend="onLinkDragEnd(event)">
-      <i class="ti ti-grip-vertical link-card-drag"></i>
-      <div class="link-card-name">${iconHTML}${escHtml(l.name)}</div>
-      <div class="link-card-actions">
-        <a class="link-card-open" href="${escAttr(l.url)}" target="_blank" rel="noopener" draggable="false"><i class="ti ti-external-link"></i>Abrir</a>
-        <div class="link-card-hover-actions">
-          <button class="link-card-icon-btn" onclick="openLinkModal('${l.id}')" title="Editar"><i class="ti ti-pencil"></i></button>
-          <button class="link-card-icon-btn danger" onclick="deleteLink('${l.id}', event)" title="Eliminar"><i class="ti ti-trash"></i></button>
-        </div>
-      </div>
-    </div>`;
-  }).join('')}</div>`;
+  const l = APPS.find(x => x.id === id);
+  if (!confirm(`¿Eliminar "${l ? l.name : 'este enlace'}"? No se puede deshacer.`)) return;
+  APPS = APPS.filter(x => x.id !== id);
+  save();
+  renderApps();
+  toast('Enlace eliminado');
 }
 
 // ── Reordenar apps (arrastrar y soltar) ──────────────────────────
@@ -1289,440 +1346,249 @@ function onLinkDragStart(ev, idx) {
   try { ev.dataTransfer.setData('text/plain', String(idx)); } catch (e) {}
   ev.currentTarget.classList.add('dragging');
 }
-
 function onLinkDragOver(ev, idx) {
   ev.preventDefault();
   ev.dataTransfer.dropEffect = 'move';
-  if (dragLinkIdx !== null && dragLinkIdx !== idx) {
-    ev.currentTarget.classList.add('drop-target');
-  }
+  if (dragLinkIdx !== null && dragLinkIdx !== idx) ev.currentTarget.classList.add('drop-target');
 }
-
-function onLinkDragLeave(ev) {
-  ev.currentTarget.classList.remove('drop-target');
-}
-
+function onLinkDragLeave(ev) { ev.currentTarget.classList.remove('drop-target'); }
 function onLinkDrop(ev, idx) {
   ev.preventDefault();
   ev.currentTarget.classList.remove('drop-target');
   if (dragLinkIdx === null || dragLinkIdx === idx) return;
-  const moved = QUICK_LINKS.splice(dragLinkIdx, 1)[0];
-  QUICK_LINKS.splice(idx, 0, moved);
+  const moved = APPS.splice(dragLinkIdx, 1)[0];
+  APPS.splice(idx, 0, moved);
   dragLinkIdx = null;
-  cachePayload();
-  renderCurrentView();
-  showToast('Orden actualizado ✓ — sincronizando…');
-  syncToJsonBin();
+  save();
+  renderApps();
+  toast('Orden actualizado');
 }
-
 function onLinkDragEnd(ev) {
   dragLinkIdx = null;
-  document.querySelectorAll('.link-card').forEach(c => {
-    c.classList.remove('dragging', 'drop-target');
-  });
+  document.querySelectorAll('.link-card').forEach(c => c.classList.remove('dragging', 'drop-target'));
 }
 
-// ── Panel ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// VISTAS
+// ══════════════════════════════════════════════════════════════
+function switchView(v) {
+  currentView = v;
+  ['catalogo','calendario','apps'].forEach(k => {
+    document.getElementById('tab-' + k).classList.toggle('active', k === v);
+    document.getElementById('view-' + k).style.display = k === v ? '' : 'none';
+  });
+  render();
+}
+function render() {
+  rebuildMap();
+  aplicarAncho();
+  if (currentView === 'catalogo') renderCatalogo();
+  else if (currentView === 'apps') renderApps();
+  else renderCalendario();
+}
+
+// ══════════════════════════════════════════════════════════════
+// PANEL DE TAREA
+// ══════════════════════════════════════════════════════════════
+let draftSteps = [];
+let draftLinks = [];
 
 function openPanel(id) {
-  const task = TASK_MAP[id];
-  if (!task) return;
+  const t = TASK_MAP[id];
+  if (!t) return;
   activeId = id;
+  draftSteps = [...t.steps];
+  draftLinks = t.links.map(l => ({...l}));
 
-  const d = getTaskData(id);
-  panelSteps = [...(d.steps || [])];
-  panelLinks = (d.links || []).map(l => ({ ...l }));
+  document.getElementById('p-title').value = t.title;
+  document.getElementById('p-area').value = t.areaId;
+  document.getElementById('p-icon').value = t.icon || 'ti-list';
+  onAreaChange();
 
-  // Header
-  document.getElementById('panel-title').textContent = task.title;
-  document.getElementById('panel-meta').textContent = task.areaLabel + ' · ' + task.week;
-  const bar = document.getElementById('panel-bar');
-  bar.className = 'panel-color-bar ' + task.areaColor;
-  const saveBtn = document.getElementById('btn-save-panel');
-  saveBtn.className = 'btn-save-panel' + (task.areaColor === 'blue' ? ' blue-area' : '');
-  document.getElementById('btn-delete-task').style.display = task.custom ? 'inline-flex' : 'none';
+  const s = t.sched;
+  document.getElementById('p-tipo').value = s ? s.tipo : '';
+  document.getElementById('p-ant').value = s && s.tipo === 'mensual' ? String(s.offset) : '2';
+  document.getElementById('p-from').value = s && s.tipo === 'mensual' ? s.dayFrom : 1;
+  document.getElementById('p-to').value = s && s.tipo === 'mensual' ? s.dayTo : 5;
+  document.getElementById('p-fecha').value = s && s.tipo === 'anual' ? (s.fecha || '') : '';
+  document.getElementById('p-fecha-fin').value = s && s.tipo === 'anual' ? (s.fechaFin || s.fecha || '') : '';
+  onTipoChange();
 
-  renderPanelSteps();
-  renderPanelLinks();
-
+  renderSteps();
+  renderLinks();
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
-  document.getElementById('page').classList.add('panel-open');
-  renderCurrentView();
 }
 
 function closePanel() {
   activeId = null;
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
-  document.getElementById('page').classList.remove('panel-open');
-  renderCurrentView();
 }
 
-// ── Steps ────────────────────────────────────────────────────────
-
-function renderPanelSteps() {
-  const list = document.getElementById('steps-list');
-  if (!panelSteps.length) { list.innerHTML = ''; return; }
-  list.innerHTML = panelSteps.map((s,i) => `
-    <div class="step-row" id="sr-${i}" draggable="true"
-      ondragstart="dragStart(event,'step',${i})"
-      ondragover="dragOverRow(event,'step',${i})"
-      ondragleave="dragLeaveRow(event)"
-      ondrop="dropRow(event,'step',${i})"
-      ondragend="dragEnd(event)">
-      <div class="reorder-col" title="Arrastrar para reordenar"><i class="ti ti-grip-vertical"></i></div>
-      <span class="step-num">${i+1}</span>
-      <textarea class="step-text" id="st-${i}" rows="1"
-        oninput="syncStep(${i},this)"
-        onkeydown="stepKey(event,${i})"
-        placeholder="Describe el paso...">${escHtml(s)}</textarea>
-      <button class="step-del" onclick="delStep(${i})" title="Eliminar paso"><i class="ti ti-x"></i></button>
-    </div>`).join('');
-  panelSteps.forEach((_,i) => autoResize(document.getElementById('st-'+i)));
+function onAreaChange() {
+  const a = AREAS.find(x => x.id === document.getElementById('p-area').value);
+  document.getElementById('p-dot').className = 'area-dot ' + (a ? a.color : 'teal');
 }
 
-function autoResize(el) {
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = el.scrollHeight + 'px';
+function onTipoChange() {
+  const tipo = document.getElementById('p-tipo').value;
+  const mensual = tipo === 'mensual';
+  const anual = tipo === 'anual';
+  document.getElementById('f-ant').style.display = mensual ? '' : 'none';
+  document.getElementById('f-from').style.display = mensual ? '' : 'none';
+  document.getElementById('f-to').style.display = mensual ? '' : 'none';
+  document.getElementById('f-fecha').style.display = anual ? '' : 'none';
+  document.getElementById('f-fecha-fin').style.display = anual ? '' : 'none';
+  const hint = document.getElementById('p-hint');
+  if (mensual) hint.textContent = 'Se repetirá en los doce meses, en esos mismos días.';
+  else if (anual) hint.textContent = 'Se repetirá cada año en esas mismas fechas. El año que elijas no importa. Si dura un día, deja "hasta" vacío.';
+  else hint.textContent = 'No aparecerá en el calendario hasta que le pongas fechas.';
 }
 
-function syncStep(i, el) {
-  panelSteps[i] = el.value;
-  autoResize(el);
+function renderSteps() {
+  const el = document.getElementById('p-steps');
+  el.innerHTML = draftSteps.length
+    ? draftSteps.map((s, i) => `
+      <div class="row-item">
+        <span class="row-num">${i + 1}</span>
+        <div class="row-text">${esc(s)}</div>
+        <button class="icon-btn danger" onclick="delStep(${i})" title="Quitar"><i class="ti ti-x"></i></button>
+      </div>`).join('')
+    : `<p class="empty" style="padding:2px 0;">Sin pasos todavía.</p>`;
 }
-
-function stepKey(e, i) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    panelSteps.splice(i+1, 0, '');
-    renderPanelSteps();
-    setTimeout(() => {
-      const next = document.getElementById('st-'+(i+1));
-      if (next) next.focus();
-    }, 0);
-  }
-  if (e.key === 'Backspace' && panelSteps[i] === '' && panelSteps.length > 1) {
-    e.preventDefault();
-    delStep(i);
-    setTimeout(() => {
-      const prev = document.getElementById('st-'+Math.max(0,i-1));
-      if (prev) { prev.focus(); const len = prev.value.length; prev.setSelectionRange(len,len); }
-    }, 0);
-  }
-}
-
 function addStep() {
-  panelSteps.push('');
-  renderPanelSteps();
-  setTimeout(() => {
-    const last = document.getElementById('st-'+(panelSteps.length-1));
-    if (last) last.focus();
-  }, 0);
+  const inp = document.getElementById('p-new-step');
+  const v = inp.value.trim();
+  if (!v) return;
+  draftSteps.push(v);
+  inp.value = '';
+  renderSteps();
 }
+function delStep(i) { draftSteps.splice(i, 1); renderSteps(); }
 
-function delStep(i) {
-  panelSteps.splice(i, 1);
-  renderPanelSteps();
-}
-
-// ── Drag & drop reorder (steps + links) ────────────────────────────
-
-let dragInfo = { type: null, index: null };
-
-function dragStart(e, type, i) {
-  dragInfo = { type, index: i };
-  e.dataTransfer.effectAllowed = 'move';
-  try { e.dataTransfer.setData('text/plain', String(i)); } catch {}
-  e.currentTarget.classList.add('dragging');
-}
-
-function dragOverRow(e, type, i) {
-  if (dragInfo.type !== type) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const row = e.currentTarget;
-  row.classList.remove('drag-over-top', 'drag-over-bottom');
-  if (i === dragInfo.index) return;
-  const rect = row.getBoundingClientRect();
-  const before = (e.clientY - rect.top) < rect.height / 2;
-  row.classList.add(before ? 'drag-over-top' : 'drag-over-bottom');
-}
-
-function dragLeaveRow(e) {
-  e.currentTarget.classList.remove('drag-over-top', 'drag-over-bottom');
-}
-
-function dropRow(e, type, targetIndex) {
-  if (dragInfo.type !== type || dragInfo.index === null) return;
-  e.preventDefault();
-  const row = e.currentTarget;
-  const rect = row.getBoundingClientRect();
-  const before = (e.clientY - rect.top) < rect.height / 2;
-  let insertAt = before ? targetIndex : targetIndex + 1;
-
-  const list = type === 'step' ? panelSteps : panelLinks;
-  const from = dragInfo.index;
-  if (from === insertAt || from === insertAt - 1) {
-    row.classList.remove('drag-over-top', 'drag-over-bottom');
-    return;
-  }
-  const [item] = list.splice(from, 1);
-  if (from < insertAt) insertAt--;
-  list.splice(insertAt, 0, item);
-
-  if (type === 'step') renderPanelSteps(); else renderPanelLinks();
-}
-
-function dragEnd(e) {
-  document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
-  document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el =>
-    el.classList.remove('drag-over-top', 'drag-over-bottom'));
-  dragInfo = { type: null, index: null };
-}
-
-// ── Links ────────────────────────────────────────────────────────
-
-function renderPanelLinks() {
-  const list = document.getElementById('links-list');
-  if (!panelLinks.length) { list.innerHTML = ''; return; }
-  list.innerHTML = panelLinks.map((l,i) => {
-    const hasUrl = l.url && l.url.trim();
-    return `
-      <div class="link-row-panel" id="lr-${i}" draggable="true"
-        ondragstart="dragStart(event,'link',${i})"
-        ondragover="dragOverRow(event,'link',${i})"
-        ondragleave="dragLeaveRow(event)"
-        ondrop="dropRow(event,'link',${i})"
-        ondragend="dragEnd(event)">
-        <div class="reorder-col" title="Arrastrar para reordenar"><i class="ti ti-grip-vertical"></i></div>
-        <input class="link-name-inp" id="ln-${i}" placeholder="Nombre" value="${escAttr(l.name||'')}"
-          oninput="syncLinkName(${i},this)">
-        <input class="link-url-inp" id="lu-${i}" type="url" placeholder="https://…" value="${escAttr(l.url||'')}"
-          oninput="syncLinkUrl(${i},this)">
-        <a class="link-go${hasUrl?'':' disabled'}" href="${hasUrl?escAttr(l.url):'#'}"
-          target="_blank" rel="noopener" title="Abrir enlace" id="lg-${i}">
-          <i class="ti ti-external-link"></i>
-        </a>
-        <button class="link-del-btn" onclick="delLink(${i})" title="Eliminar enlace">
-          <i class="ti ti-trash"></i>
-        </button>
-      </div>`;
-  }).join('');
-}
-
-function syncLinkName(i,el) { panelLinks[i].name = el.value; }
-function syncLinkUrl(i,el) {
-  panelLinks[i].url = el.value;
-  const go = document.getElementById('lg-'+i);
-  if (go) { const v=el.value.trim(); go.href=v||'#'; go.classList.toggle('disabled',!v); }
+function renderLinks() {
+  const el = document.getElementById('p-links');
+  el.innerHTML = draftLinks.length
+    ? draftLinks.map((l, i) => {
+        const esWeb = /^https?:\/\//i.test(l.url || '');
+        const nombre = l.name && l.name.trim() ? l.name : l.url;
+        const cuerpo = esWeb
+          ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(nombre)}</a>`
+          : `${esc(nombre)}<br><span class="hint">${esc(l.url)}</span>`;
+        return `
+        <div class="row-item">
+          <i class="ti ti-link" style="color:var(--blue-dark); font-size:13px; margin-top:3px;"></i>
+          <div class="row-text">${cuerpo}</div>
+          <button class="icon-btn danger" onclick="delLink(${i})" title="Quitar"><i class="ti ti-x"></i></button>
+        </div>`;
+      }).join('')
+    : `<p class="empty" style="padding:2px 0;">Sin enlaces todavía.</p>`;
 }
 function addLink() {
-  panelLinks.push({ name:'', url:'' });
-  renderPanelLinks();
-  setTimeout(() => {
-    const last = document.getElementById('ln-'+(panelLinks.length-1));
-    if (last) last.focus();
-  }, 0);
+  const n = document.getElementById('p-link-name');
+  const u = document.getElementById('p-link-url');
+  const url = u.value.trim();
+  if (!url) { toast('Escribe la URL o la ruta del enlace'); return; }
+  draftLinks.push({ name: n.value.trim(), url });
+  n.value = ''; u.value = '';
+  renderLinks();
 }
-function delLink(i) { panelLinks.splice(i,1); renderPanelLinks(); }
+function delLink(i) { draftLinks.splice(i, 1); renderLinks(); }
 
-// ── Sincronización JSONBin ─────────────────────────────────────────
+function savePanel() {
+  const t = TASK_MAP[activeId];
+  if (!t) return;
 
-function setSyncStatus(state, text) {
-  const badge = document.getElementById('sync-badge');
-  const txt = document.getElementById('sync-text');
-  if (!badge || !txt) return;
-  txt.textContent = text;
-  const icons = { loading: 'ti-loader', ok: 'ti-cloud-check', err: 'ti-cloud-off', local: 'ti-device-floppy' };
-  const icon = badge.querySelector('i');
-  if (icon) icon.className = 'ti ' + (icons[state] || 'ti-cloud');
-}
+  const nuevoTitulo = document.getElementById('p-title').value.trim();
+  if (!nuevoTitulo) { toast('La tarea necesita un nombre'); return; }
 
-async function initData() {
-  if (!JSONBIN_CONFIGURED) {
-    setSyncStatus('local', 'Bin no configurado — usando copia local');
-    rebuildAreas();
-    switchView(currentView);
-    return;
-  }
-  setSyncStatus('loading', 'Cargando datos…');
-  try {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    const norm = normalizePayload(json.record);
-    const hasContent = Object.keys(norm.data).length || norm.customTasks.length || norm.eventualTasks.length || norm.quickLinks.length;
-    if (hasContent) {
-      DATA = norm.data;
-      CUSTOM_TASKS = norm.customTasks;
-      EVENTUAL_TASKS = norm.eventualTasks;
-      QUICK_LINKS = norm.quickLinks;
-      cachePayload();
-      setSyncStatus('ok', 'Datos actualizados');
-    } else {
-      setSyncStatus('local', 'Bin vacío — pulsa "Sincronizar" para subir tu copia');
-    }
-  } catch (e) {
-    setSyncStatus('err', 'Sin conexión — usando última copia local');
-  }
-  rebuildAreas();
-  switchView(currentView);
-}
+  const tipo = document.getElementById('p-tipo').value;
 
-async function syncToJsonBin() {
-  if (!JSONBIN_CONFIGURED) {
-    showToast('Falta configurar JSONBIN_BIN_ID en el código');
-    return;
-  }
-  let key = localStorage.getItem(LS_MASTERKEY);
-  if (!key) {
-    key = prompt('Introduce tu Master Key de JSONBin (se guarda solo en este navegador, se pide una única vez):');
-    if (!key) { showToast('Sincronización cancelada'); return; }
-    localStorage.setItem(LS_MASTERKEY, key);
-  }
-  setSyncStatus('loading', 'Guardando en la nube…');
-  try {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
-      body: JSON.stringify({ data: DATA, customTasks: CUSTOM_TASKS, eventualTasks: EVENTUAL_TASKS, quickLinks: QUICK_LINKS })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    setSyncStatus('ok', 'Sincronizado ✓');
-    showToast('Sincronizado con JSONBin ✓');
-  } catch (e) {
-    setSyncStatus('err', 'Error al sincronizar (revisa la Master Key)');
-    localStorage.removeItem(LS_MASTERKEY);
-  }
-}
-
-// ── Nueva tarea (formulario) ────────────────────────────────────────
-
-function openTaskModal() {
-  const sel = document.getElementById('tm-week');
-  sel.innerHTML = WEEKS.map(w => `<option value="${w.key}">${w.fase} · ${w.label}</option>`).join('');
-  document.getElementById('tm-type').value = 'rutinaria';
-  document.getElementById('tm-area').value = 'centros';
-  document.getElementById('tm-title').value = '';
-  document.getElementById('tm-icon').value = '';
-  onTaskTypeChange();
-  document.getElementById('task-modal-overlay').classList.add('open');
-  document.getElementById('task-modal').classList.add('open');
-}
-
-function onTaskTypeChange() {
-  const isPuntual = document.getElementById('tm-type').value === 'puntual';
-  document.getElementById('tm-week-wrap').style.display = isPuntual ? 'none' : '';
-}
-
-function closeTaskModal() {
-  document.getElementById('task-modal-overlay').classList.remove('open');
-  document.getElementById('task-modal').classList.remove('open');
-}
-
-function createTask() {
-  const type = document.getElementById('tm-type').value;
-  const areaId = document.getElementById('tm-area').value;
-  const title = document.getElementById('tm-title').value.trim();
-  const icon = document.getElementById('tm-icon').value.trim() || 'ti-list';
-  if (!title) { showToast('Ponle un título a la tarea'); return; }
-
-  const id = 'custom_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  if (type === 'puntual') {
-    EVENTUAL_TASKS.push({ id, areaId, title, icon, done: false });
+  if (tipo === 'mensual') {
+    let from = parseInt(document.getElementById('p-from').value, 10);
+    let to = parseInt(document.getElementById('p-to').value, 10);
+    if (!(from >= 1 && from <= 31)) { toast('El día de inicio tiene que estar entre 1 y 31'); return; }
+    if (!(to >= 1 && to <= 31)) { toast('El día final tiene que estar entre 1 y 31'); return; }
+    if (to < from) { const x = from; from = to; to = x; }
+    t.sched = { tipo:'mensual', dayFrom: from, dayTo: to, offset: parseInt(document.getElementById('p-ant').value, 10) };
+  } else if (tipo === 'anual') {
+    let f = document.getElementById('p-fecha').value;
+    let ff = document.getElementById('p-fecha-fin').value;
+    if (!f) { toast('Elige la fecha de inicio'); return; }
+    if (ff && ff < f) { const x = f; f = ff; ff = x; }   // si vienen al revés, se ordenan
+    t.sched = { tipo:'anual', fecha: f, fechaFin: ff || f };
   } else {
-    const weekKey = document.getElementById('tm-week').value;
-    CUSTOM_TASKS.push({ id, areaId, weekKey, title, icon });
+    t.sched = null;
   }
-  cachePayload();
-  closeTaskModal();
-  rebuildAreas();
-  renderCurrentView();
-  showToast('Tarea creada ✓ — sincronizando…');
-  syncToJsonBin();
+
+  t.title = nuevoTitulo;
+  t.areaId = document.getElementById('p-area').value;
+  t.icon = document.getElementById('p-icon').value;
+  t.steps = [...draftSteps];
+  t.links = draftLinks.map(l => ({...l}));
+  save();
+  render();
+  closePanel();
+  toast('Tarea guardada');
 }
 
 function deleteTask() {
-  if (!activeId) return;
-  if (!confirm('¿Eliminar esta tarea? No se puede deshacer.')) return;
-  CUSTOM_TASKS = CUSTOM_TASKS.filter(ct => ct.id !== activeId);
-  EVENTUAL_TASKS = EVENTUAL_TASKS.filter(et => et.id !== activeId);
-  delete DATA[activeId];
-  cachePayload();
-  rebuildAreas();
+  const t = TASK_MAP[activeId];
+  if (!t) return;
+  if (!confirm(`¿Eliminar "${t.title}"? No se puede deshacer.`)) return;
+  TASKS = TASKS.filter(x => x.id !== activeId);
+  save();
   closePanel();
-  showToast('Tarea eliminada ✓ — sincronizando…');
-  syncToJsonBin();
+  render();
+  toast('Tarea eliminada');
 }
 
-// ── Save ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// NUEVA TAREA
+// ══════════════════════════════════════════════════════════════
+function openTaskModal() {
+  document.getElementById('m-title').value = '';
+  document.getElementById('m-area').value = 'centros';
+  document.getElementById('m-icon').value = 'ti-list';
+  document.getElementById('modal-bg').classList.add('open');
+  document.getElementById('m-title').focus();
+}
+function closeTaskModal() { document.getElementById('modal-bg').classList.remove('open'); }
 
-function savePanel() {
-  if (!activeId) return;
-  DATA[activeId] = {
-    steps: panelSteps.filter(s => s.trim()),
-    links: panelLinks.filter(l => l.url.trim() || l.name.trim())
-  };
-  cachePayload();
-  closePanel();
-  showToast('Guardado ✓ — sincronizando…');
-  syncToJsonBin();
+function createTask() {
+  const title = document.getElementById('m-title').value.trim();
+  if (!title) { toast('Ponle nombre a la tarea'); return; }
+  const id = 't' + Date.now().toString(36);
+  TASKS.push({
+    id, areaId: document.getElementById('m-area').value, title,
+    icon: document.getElementById('m-icon').value,
+    sched: null, steps: [], links: []
+  });
+  save();
+  rebuildMap();
+  closeTaskModal();
+  render();
+  openPanel(id);
 }
 
-// ── Utils ────────────────────────────────────────────────────────
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function escAttr(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2000);
+let toastT = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 2300);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closePanel();
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('link-modal-bg').classList.contains('open')) closeLinkModal();
+  else if (document.getElementById('modal-bg').classList.contains('open')) closeTaskModal();
+  else if (activeId) closePanel();
 });
 
-// ── Redimensionar el panel lateral a mano ───────────────────────────
-(function initPanelResize() {
-  const handle = document.getElementById('panel-resize-handle');
-  if (!handle) return;
-  const MIN_W = 380, MAX_W = 900;
-  const LS_PANEL_W = 'mco_panel_width';
-  const saved = parseInt(localStorage.getItem(LS_PANEL_W), 10);
-  if (saved && saved >= MIN_W && saved <= MAX_W) {
-    document.documentElement.style.setProperty('--panel-w', saved + 'px');
-  }
-  let dragging = false;
-  handle.addEventListener('mousedown', e => {
-    dragging = true;
-    handle.classList.add('dragging');
-    e.preventDefault();
-  });
-  window.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    let w = window.innerWidth - e.clientX;
-    w = Math.max(MIN_W, Math.min(MAX_W, w));
-    document.documentElement.style.setProperty('--panel-w', w + 'px');
-  });
-  window.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    dragging = false;
-    handle.classList.remove('dragging');
-    const w = getComputedStyle(document.documentElement).getPropertyValue('--panel-w').trim();
-    try { localStorage.setItem(LS_PANEL_W, parseInt(w, 10)); } catch {}
-  });
-})();
-
-initData();
+render();
 </script>
 </body>
 </html>
