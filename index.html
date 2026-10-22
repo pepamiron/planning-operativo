@@ -1,86 +1,1910 @@
--- QCC Expansión Tiendas Mercadona Online
--- El año se pasa como variable {{anio}} (en Metabase: tipo Número, p. ej. 2027).
---
--- IMPORTANTE: el filtro de año va al final, en el WHERE de la consulta
--- principal, y NO dentro de los CTE. Las funciones de ventana necesitan
--- ver el histórico completo de cada centro para calcular prev_model,
--- prev_pom y prev_online. Si se filtrara antes, el primer movimiento de
--- cada año se interpretaría como alta nueva en lugar de como cambio.
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planning Operativo — Mercadona Online</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root {
+  --bg: #f8f8f6;
+  --surface: #ffffff;
+  --surface2: #f2f2f0;
+  --border: rgba(0,0,0,0.1);
+  --border-strong: rgba(0,0,0,0.22);
+  --text: #1a1a18;
+  --text-muted: #6b6b66;
+  --text-faint: #a0a09a;
+  --teal: #1D9E75;
+  --teal-light: #E1F5EE;
+  --teal-border: #9FE1CB;
+  --teal-dark: #0F6E56;
+  --blue: #378ADD;
+  --blue-light: #E6F1FB;
+  --blue-border: #B5D4F4;
+  --blue-dark: #185FA5;
+  /* Antelación: con cuántos meses de adelanto se trabaja */
+  --a2-bg: #FFF3DF; --a2-border: #DE9C32; --a2-text: #7A4D04;
+  --a1-bg: #EBEDFB; --a1-border: #6A74D4; --a1-text: #2D3583;
+  --ev-bg: #FCE9F1; --ev-border: #D3689E; --ev-text: #8A2A59;
+  --radius: 8px; --radius-lg: 12px;
+  --panel-w: 520px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px; line-height: 1.45;
+}
+.wrap { padding: 22px 26px 60px; max-width: 1500px; }
+/* En la vista de mes se aprovecha todo el ancho de la ventana para que los
+   31 días se separen más, sin provocar scroll horizontal. */
+.wrap.ancho { max-width: none; }
 
-WITH ordered AS (
-  SELECT
-    cv.code,
-    cv.mercadona_code,
-    cv.start_date,
-    cv.end_date,
-    cv.model,
-    cv.pom,
-    cv.online,
-    LAST_VALUE(cv.model IGNORE NULLS) OVER (
-      PARTITION BY cv.code
-      ORDER BY cv.start_date
-      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-    ) AS prev_model,
-    LAST_VALUE(cv.pom IGNORE NULLS) OVER (
-      PARTITION BY cv.code
-      ORDER BY cv.start_date
-      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-    ) AS prev_pom,
-    LAG(cv.online) OVER (
-      PARTITION BY cv.code
-      ORDER BY cv.start_date
-    ) AS prev_online
-  FROM `centrosmo_mart.center_versions` cv
-),
-with_nums AS (
-  SELECT
-    *,
-    CAST(REGEXP_EXTRACT(CAST(model AS STRING), r'\d+') AS INT64)      AS model_num,
-    CAST(REGEXP_EXTRACT(CAST(prev_model AS STRING), r'\d+') AS INT64) AS prev_model_num
-  FROM ordered
-),
-postal_codes AS (
-  SELECT
-    code,
-    start_date,
-    STRING_AGG(postal_code, ' ' ORDER BY postal_code) AS cps_que_servimos
-  FROM `centrosmo_mart.center_versions_postal_codes`
-  WHERE service_type <> 'nsd'
-  GROUP BY code, start_date
-)
-SELECT
-  ci.zone                                         AS zona_tiendas,
-  w.code                                          AS num_centro,
-  ci.name                                         AS denominacion,
-  UPPER(ci.town)                                  AS poblacion,
-  UPPER(ci.province)                              AS provincia,
-  CASE
-    WHEN w.online = FALSE AND (w.prev_online = TRUE OR w.prev_online IS NULL) THEN ''
-    WHEN w.online = TRUE  AND w.prev_online = FALSE                           THEN CONCAT('Apertura tras reforma NTC', CAST(w.model_num AS STRING))
-    WHEN w.prev_model IS NULL AND w.online = TRUE                             THEN CONCAT('NTC', CAST(w.model_num AS STRING))
-    WHEN w.model_num > w.prev_model_num                                       THEN CONCAT('Ampliación de NTC', CAST(w.prev_model_num AS STRING), ' a NTC', CAST(w.model_num AS STRING))
-    WHEN w.model_num < w.prev_model_num                                       THEN CONCAT('Bajada de NTC', CAST(w.prev_model_num AS STRING), ' a NTC', CAST(w.model_num AS STRING))
-    ELSE 'Cambio lateral'
-  END                                             AS escenario,
-  pc.cps_que_servimos                             AS cps_que_servimos,
-  NULL                                            AS tiendas_que_dejan_de_servir_tc,
-  NULL                                            AS fecha_1er_dia_formacion,
-  CASE WHEN w.online = FALSE AND (w.prev_online = TRUE OR w.prev_online IS NULL)
-       THEN w.start_date END                      AS fecha_cierre_servicio,
-  CASE WHEN w.online = TRUE
-       THEN w.start_date END                      AS fecha_1er_servicio
-FROM with_nums w
-LEFT JOIN `centrosmo_mart.center_info` ci
-  ON w.code = ci.code
-LEFT JOIN postal_codes pc
-  ON w.code = pc.code AND w.start_date = pc.start_date
-WHERE
-  (
-    w.prev_model IS NULL
-    OR w.model <> w.prev_model
-    OR w.pom <> w.prev_pom
-    OR w.online <> w.prev_online
-  )
-  AND EXTRACT(YEAR FROM w.start_date) = {{anio}}
-  AND w.code NOT IN ('vlc1','bcn1','mad1','svq1','alc1','mad2','mad3','pan1','pan2','pan3','mlg1','pmi1')
-ORDER BY w.start_date, w.code
+/* ── Cabecera ───────────────────────────────────────────── */
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+h1 { font-size: 20px; font-weight: 600; margin: 0 0 3px; display: flex; align-items: center; gap: 9px; }
+h1 i { color: var(--teal); font-size: 20px; }
+.sub { color: var(--text-muted); font-size: 13px; margin: 0; }
+.head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.status {
+  font-size: 12px; color: var(--text-muted); background: var(--surface);
+  border: 0.5px solid var(--border); border-radius: var(--radius);
+  padding: 6px 11px; display: inline-flex; align-items: center; gap: 6px;
+}
+.status.ok { color: var(--teal-dark); border-color: var(--teal-border); background: var(--teal-light); }
+.status.err { color: #a33; border-color: #e8b9b9; background: #fdf3f3; }
+.btn {
+  background: var(--surface); border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius); padding: 6px 12px; font-size: 13px;
+  cursor: pointer; color: var(--text); font-family: inherit;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover { background: var(--surface2); }
+.btn-primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+.btn-primary:hover { background: var(--teal-dark); }
+
+/* ── Pestañas ───────────────────────────────────────────── */
+.tabs { display: flex; gap: 8px; margin: 20px 0 16px; }
+.tab {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius); padding: 9px 16px; font-size: 14px;
+  cursor: pointer; color: var(--text); font-family: inherit;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.tab:hover { background: var(--surface2); }
+.tab.active { background: var(--teal); border-color: var(--teal); color: #fff; }
+
+/* ── Catálogo ───────────────────────────────────────────── */
+.area { margin-bottom: 26px; }
+.area-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.area-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.area-dot.teal { background: var(--teal); }
+.area-dot.blue { background: var(--blue); }
+.area-name { font-size: 14px; font-weight: 600; }
+.area-count { font-size: 12px; color: var(--text-faint); }
+.cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.card {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-left: 2.5px solid var(--border); border-radius: var(--radius-lg);
+  padding: 11px 13px; width: 268px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+.card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.card { cursor: grab; }
+.card.dragging { opacity: .4; cursor: grabbing; }
+.card.drop-target { border-color: var(--teal); border-style: dashed; }
+.icon-btn:disabled { opacity: .3; cursor: default; }
+.icon-btn:disabled:hover { background: transparent; color: var(--text-faint); }
+/* Filas de pasos y enlaces: se reordenan arrastrando */
+.row-item.arrastrable { cursor: grab; }
+.row-item.arrastrable:hover { background: var(--surface2); border-radius: 5px; }
+.row-item.fila-arrastrando { opacity: .4; cursor: grabbing; }
+.row-item.fila-destino { box-shadow: inset 0 2px 0 var(--teal); }
+.row-grip { color: var(--text-faint); font-size: 13px; margin-top: 3px; flex-shrink: 0; opacity: 0; transition: opacity .15s ease; }
+.row-item.arrastrable:hover .row-grip { opacity: .6; }
+@media (hover: none) { .row-grip { opacity: .6; } }
+.card.teal { border-left-color: var(--teal); }
+.card.blue { border-left-color: var(--blue); }
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+.card-title { font-size: 13px; font-weight: 600; line-height: 1.3; display: flex; gap: 7px; align-items: flex-start; }
+.card-title i { font-size: 14px; color: var(--text-muted); margin-top: 1px; flex-shrink: 0; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  border: 0.5px solid var(--border); color: var(--text-faint);
+  background: var(--surface2); display: inline-flex; align-items: center; gap: 3px;
+}
+.badge i { font-size: 11px; }
+.badge.steps { color: var(--teal-dark); border-color: var(--teal-border); background: var(--teal-light); }
+.badge.links { color: var(--blue-dark); border-color: var(--blue-border); background: var(--blue-light); }
+.tag-ant {
+  font-size: 9px; font-weight: 600; letter-spacing: .3px;
+  padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
+  border: 0.5px solid var(--a2-border); background: var(--a2-bg); color: var(--a2-text);
+}
+.tag-ant.a1 { border-color: var(--a1-border); background: var(--a1-bg); color: var(--a1-text); }
+.tag-ant.ev { border-color: var(--ev-border); background: var(--ev-bg); color: var(--ev-text); }
+.sched-line { font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+.sched-line i { font-size: 12px; }
+.sched-line.none { color: var(--text-faint); font-style: italic; }
+.empty { color: var(--text-faint); font-size: 13px; padding: 10px 0; }
+
+/* ── Calendario ─────────────────────────────────────────── */
+.cal-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.seg { display: flex; border: 0.5px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
+.seg button {
+  background: var(--surface); border: none; padding: 6px 13px; font-size: 13px;
+  cursor: pointer; color: var(--text); font-family: inherit;
+  border-right: 0.5px solid var(--border);
+}
+.seg button:last-child { border-right: none; }
+.seg button.active { background: var(--teal); color: #fff; }
+.cal-title { font-size: 15px; font-weight: 600; min-width: 170px; }
+.legend { display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.legend span { font-size: 11.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 0.5px solid; }
+.lg-a2 { background: #F2D09A; border-color: var(--a2-border); }
+.lg-a1 { background: #B7BDEB; border-color: var(--a1-border); }
+.lg-ev { background: #ECB5D0; border-color: var(--ev-border); }
+
+.month {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg); padding: 12px 14px 14px; margin-bottom: 14px;
+  overflow-x: auto;
+}
+.month-name { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.month-name .n-tasks { font-size: 11px; color: var(--text-faint); font-weight: 400; }
+.scale { display: grid; gap: 2px; min-width: 0; }
+.scale.mes { gap: 1px; }
+/* Semana: solo 7 columnas, así que caben cabeceras y textos holgados */
+/* Semana: columnas de día visibles para que las barras se lean contra la
+   rejilla y se pueda saber de un vistazo en qué día empiezan y acaban. */
+.scale.semana { column-gap: 0; row-gap: 4px; min-width: 0; }
+.scale.semana .day-h {
+  font-size: 11.5px; padding: 3px 0 5px 7px; text-align: left;
+  font-variant-numeric: tabular-nums; border-bottom: none;
+}
+.scale.semana .day-h.we { background: none; border-radius: 0; }
+.scale.semana .day-h.today {
+  background: none; color: var(--teal-dark); font-weight: 700;
+  border-radius: 0; border-bottom-color: transparent;
+}
+.scale.semana .bar {
+  padding: 5px 9px; font-size: 12.5px; margin-right: 4px;
+  border-left-width: 3px; border-radius: 4px; font-weight: 500;
+}
+.col-bg { border-left: 0.5px solid var(--border); }
+.col-bg.we { background: rgba(0,0,0,.025); }
+.col-bg.hoy { background: var(--teal-light); border-left-color: var(--teal); }
+.bar .area-dot { width: 6px; height: 6px; flex-shrink: 0; }
+
+/* Semanas apiladas dentro de la vista de mes */
+.sem-fila { padding: 7px 0 9px; border-top: 0.5px solid var(--border); }
+.sem-fila:first-of-type { border-top: none; padding-top: 1px; }
+.sem-fila.vacia { padding: 4px 0 5px; }          /* sin tareas: fila fina */
+.sem-fila.vacia .day-h { color: var(--text-faint); font-size: 11px; }
+.day-h.fuera { color: var(--border-strong); }
+.scale.mes .bar { padding: 4px 6px; font-size: 11.5px; }
+.scale.mes .bar i.ti { margin-right: 1px; }
+.scale .day-h {
+  font-size: 9.5px; color: var(--text-faint); text-align: center;
+  padding-bottom: 3px; border-bottom: 0.5px solid var(--border);
+}
+.scale .day-h.we { color: var(--text-faint); background: var(--surface2); border-radius: 3px 3px 0 0; }
+/* Día actual: número en blanco sobre fondo sólido */
+.scale .day-h.today {
+  color: #fff; font-weight: 700; background: var(--teal);
+  border-radius: 4px 4px 0 0; border-bottom-color: var(--teal);
+}
+.bar {
+  grid-row: var(--row); font-size: 11px; padding: 3px 7px; border-radius: 5px;
+  border: 0.5px solid; cursor: pointer; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; display: flex; align-items: center; gap: 5px;
+  min-width: 0;                      /* deja que la barra se encoja con la columna */
+}
+/* El texto se recorta dentro de la barra en lugar de ensanchar la rejilla */
+.bar-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar:hover { filter: brightness(.97); }
+.bar i.ti { font-size: 11px; flex-shrink: 0; }
+.bar .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.bar.a2 { background: var(--a2-bg); border-color: var(--a2-border); color: var(--a2-text); }
+.bar.a1 { background: var(--a1-bg); border-color: var(--a1-border); color: var(--a1-text); }
+.bar.ev { background: var(--ev-bg); border-color: var(--ev-border); color: var(--ev-text); }
+.cal-empty {
+  background: var(--surface); border: 0.5px dashed var(--border-strong);
+  border-radius: var(--radius-lg); padding: 30px; text-align: center; color: var(--text-muted);
+}
+.cal-empty strong { display: block; font-size: 15px; color: var(--text); margin-bottom: 5px; font-weight: 600; }
+.year-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 12px; }
+.year-grid .month { margin-bottom: 0; }
+.year-grid .scale { min-width: 0; }
+
+/* Flujo mensual */
+.flujo-mes-head {
+  font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  text-transform: lowercase; padding: 14px 0 6px; border-bottom: 0.5px solid var(--border);
+  margin-bottom: 4px;
+}
+.flujo-mes-head:first-of-type { padding-top: 4px; }
+.flujo-row {
+  display: flex; align-items: center; gap: 9px; padding: 8px 6px;
+  border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.flujo-row:hover { background: var(--surface2); }
+.flujo-fecha {
+  font-size: 12px; color: var(--text-muted); width: 92px; flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.flujo-row i.ti { font-size: 14px; color: var(--text-muted); flex-shrink: 0; }
+.flujo-nombre { flex: 1; font-weight: 500; }
+.flujo-estado { font-size: 11.5px; color: var(--text-faint); flex-shrink: 0; }
+.flujo-row.pasado { opacity: .55; }
+.flujo-row.pasado .flujo-nombre { text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.flujo-row.curso { background: var(--teal-light); }
+.flujo-row.curso .flujo-estado { color: var(--teal-dark); font-weight: 600; }
+
+/* Vista de año por trimestres: tres meses por fila, cuatro filas */
+.trimestre {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; margin-bottom: 12px;
+}
+.trimestre .month { margin-bottom: 0; }
+.trimestre .scale { min-width: 0; }
+@media (max-width: 1100px) { .trimestre { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px)  { .trimestre { grid-template-columns: minmax(0, 1fr); } }
+
+/* Matriz anual: filas de tarea, columnas de mes */
+.ymatrix {
+  display: grid; grid-template-columns: minmax(0, 190px) repeat(12, minmax(0, 1fr));
+  column-gap: 3px; row-gap: 4px; align-items: center;
+}
+.ym-head {
+  font-size: 10.5px; color: var(--text-muted); text-align: center;
+  padding-bottom: 5px; font-variant-numeric: tabular-nums;
+}
+.ym-head.hoy { color: var(--teal-dark); font-weight: 700; }
+.ym-area {
+  grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  display: flex; align-items: center; gap: 7px; padding: 12px 0 2px;
+}
+.ym-area:first-of-type { padding-top: 4px; }
+.ym-name {
+  font-size: 12.5px; display: flex; align-items: center; gap: 6px;
+  min-width: 0; cursor: pointer; padding-right: 8px;
+}
+.ym-name i { font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
+.ym-name:hover { color: var(--teal-dark); }
+.ym-cell {
+  height: 21px; background: var(--surface2); border-radius: 3px;
+  position: relative; cursor: pointer;
+}
+.ym-cell.hoy { background: var(--teal-light); }
+.ym-cell:hover { outline: 0.5px solid var(--border-strong); }
+.ym-mark { position: absolute; top: 3px; bottom: 3px; border-radius: 2px; border: 0.5px solid; min-width: 2px; }
+.ym-mark.a2 { background: var(--a2-bg); border-color: var(--a2-border); }
+.ym-mark.a1 { background: var(--a1-bg); border-color: var(--a1-border); }
+.ym-mark.ev { background: var(--ev-bg); border-color: var(--ev-border); }
+.day-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Apps ───────────────────────────────────────────────── */
+.links-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.link-card {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg); padding: 14px 16px;
+  width: 250px; display: flex; flex-direction: column; gap: 10px;
+  position: relative; cursor: grab;
+  transition: box-shadow .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.link-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); border-color: var(--border-strong); }
+.link-card.dragging { opacity: .4; cursor: grabbing; }
+.link-card.drop-target { border-color: var(--blue-dark); border-style: dashed; }
+.link-card-drag {
+  position: absolute; top: 8px; left: 6px; color: var(--text-faint);
+  font-size: 14px; opacity: 0; transition: opacity .15s ease; pointer-events: none;
+}
+.link-card:hover .link-card-drag { opacity: .6; }
+.link-card-name {
+  font-size: 13px; font-weight: 600; line-height: 1.35;
+  display: flex; align-items: flex-start; gap: 7px; word-break: break-word;
+}
+.link-card-name i { color: var(--blue-dark); font-size: 15px; margin-top: 1px; flex-shrink: 0; }
+.link-card-icon-img {
+  width: 20px; height: 20px; border-radius: 5px; object-fit: cover;
+  flex-shrink: 0; margin-top: 1px; border: 0.5px solid var(--border);
+}
+.link-card-actions { display: flex; gap: 6px; margin-top: auto; align-items: center; }
+.link-card-open {
+  flex: 1; text-align: center; font-size: 12px; padding: 7px;
+  border-radius: 6px; background: var(--blue-light); color: var(--blue-dark);
+  text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 5px;
+  font-weight: 500;
+}
+.link-card-open:hover { background: var(--blue-border); }
+.link-card-hover-actions {
+  display: flex; gap: 6px; opacity: 0; width: 0; overflow: hidden;
+  transition: opacity .15s ease, width .15s ease;
+}
+.link-card:hover .link-card-hover-actions,
+.link-card:focus-within .link-card-hover-actions { opacity: 1; width: auto; }
+.link-card-icon-btn {
+  background: transparent; border: 0.5px solid var(--border-strong);
+  border-radius: 6px; padding: 6px 9px; cursor: pointer;
+  color: var(--text-muted); display: flex; align-items: center; flex-shrink: 0;
+}
+.link-card-icon-btn:hover { background: var(--surface2); }
+.link-card-icon-btn.danger:hover { background: rgba(201,42,42,.10); color: #c92a2a; border-color: #c92a2a; }
+.icon-preview { display: none; align-items: center; gap: 8px; margin-top: 6px; }
+.icon-preview img { width: 32px; height: 32px; border-radius: 6px; border: 0.5px solid var(--border); }
+@media (hover: none) {
+  .link-card-hover-actions { opacity: 1; width: auto; }
+  .link-card-drag { opacity: .6; }
+}
+
+/* ── Panel lateral ──────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.12);
+  opacity: 0; pointer-events: none; transition: opacity .18s ease; z-index: 40;
+}
+.overlay.open { opacity: 1; pointer-events: auto; }
+.panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-w); max-width: 94vw;
+  background: var(--surface); border-left: 0.5px solid var(--border);
+  box-shadow: -4px 0 20px rgba(0,0,0,.07); transform: translateX(100%);
+  transition: transform .2s ease; z-index: 50; display: flex; flex-direction: column;
+}
+.panel.open { transform: translateX(0); }
+.panel-head { padding: 18px 20px 14px; border-bottom: 0.5px solid var(--border); }
+.panel-title-input {
+  font-size: 16px; font-weight: 600; margin: 0 0 5px; width: 100%;
+  border: 0.5px solid transparent; border-radius: 6px;
+  padding: 3px 6px; margin-left: -6px; background: transparent;
+  font-family: inherit; color: var(--text);
+}
+.panel-title-input:hover { border-color: var(--border); background: var(--surface2); }
+.panel-title-input:focus { border-color: var(--teal); background: var(--surface); }
+.meta-select {
+  font-size: 12px; color: var(--text-muted); border: 0.5px solid transparent;
+  background: transparent; padding: 2px 4px; width: auto; border-radius: 5px; cursor: pointer;
+}
+.meta-select:hover { border-color: var(--border); background: var(--surface2); }
+.meta-select:focus { border-color: var(--teal); background: var(--surface); }
+.panel-meta { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 7px; }
+.panel-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+.panel-foot { padding: 13px 20px; border-top: 0.5px solid var(--border); display: flex; gap: 8px; }
+.sec-title {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  margin: 0 0 9px; display: flex; align-items: center; gap: 6px;
+}
+.sec { margin-bottom: 22px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field.wide { grid-column: 1 / -1; }
+label { font-size: 11.5px; color: var(--text-muted); }
+input, select, textarea {
+  border: 0.5px solid var(--border-strong); border-radius: 6px;
+  padding: 7px 9px; font-size: 13px; background: var(--surface);
+  color: var(--text); font-family: inherit; outline: none; width: 100%;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--teal); }
+textarea { resize: vertical; min-height: 58px; }
+.hint { font-size: 11.5px; color: var(--text-faint); }
+.row-item {
+  display: flex; align-items: flex-start; gap: 8px; padding: 7px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+.row-item:last-child { border-bottom: none; }
+.row-num {
+  font-size: 10px; color: var(--text-faint); background: var(--surface2);
+  border-radius: 4px; padding: 1px 5px; flex-shrink: 0; margin-top: 2px;
+}
+.row-text { flex: 1; font-size: 13px; line-height: 1.4; word-break: break-word; }
+.row-text a { color: var(--blue-dark); text-decoration: none; word-break: break-all; }
+.row-text a:hover { text-decoration: underline; }
+.icon-btn {
+  background: transparent; border: 0.5px solid var(--border); border-radius: 5px;
+  padding: 3px 6px; cursor: pointer; color: var(--text-faint); flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--surface2); color: var(--text); }
+.icon-btn.danger:hover { color: #c92a2a; border-color: #c92a2a; background: rgba(201,42,42,.08); }
+
+/* ── Modal ──────────────────────────────────────────────── */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 60;
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-bg.open { display: flex; }
+.modal {
+  background: var(--surface); border-radius: var(--radius-lg); padding: 20px;
+  width: 440px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+}
+.modal h3 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+.modal .fields { margin-bottom: 16px; }
+.modal-foot { display: flex; gap: 8px; justify-content: flex-end; }
+
+.toast {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--text); color: #fff; padding: 9px 16px; border-radius: var(--radius);
+  font-size: 13px; opacity: 0; transition: all .2s ease; z-index: 90; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 720px) {
+  .wrap { padding: 16px 14px 50px; }
+  .fields { grid-template-columns: 1fr; }
+  .legend { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1><i class="ti ti-calendar-month"></i>Planning Operativo — Mercadona Online</h1>
+      <p class="sub">Define cada tarea una vez en el catálogo y dale su rango de días. El calendario la repite cada mes.</p>
+    </div>
+    <div class="head-actions">
+      <span class="status" id="status"><i class="ti ti-device-floppy"></i><span id="status-txt">Guardado en este navegador</span></span>
+      <button class="btn" onclick="openTaskModal()"><i class="ti ti-plus"></i>Nueva tarea</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-calendario" onclick="switchView('calendario')"><i class="ti ti-calendar"></i>Calendario</button>
+    <button class="tab" id="tab-flujo" onclick="switchView('flujo')"><i class="ti ti-route"></i>Flujo mensual</button>
+    <button class="tab" id="tab-catalogo" onclick="switchView('catalogo')"><i class="ti ti-list-details"></i>Catálogo</button>
+    <button class="tab" id="tab-apps" onclick="switchView('apps')"><i class="ti ti-link"></i>Apps</button>
+  </div>
+
+  <div id="view-catalogo" style="display:none;"></div>
+
+  <div id="view-calendario">
+    <div class="cal-bar">
+      <div class="seg">
+        <button id="cv-dia" onclick="setCalMode('dia')">Día</button>
+        <button id="cv-semana" onclick="setCalMode('semana')">Semana</button>
+        <button id="cv-mes" class="active" onclick="setCalMode('mes')">Mes</button>
+        <button id="cv-anio" onclick="setCalMode('anio')">Año</button>
+      </div>
+      <button class="btn" onclick="calStep(-1)" title="Anterior"><i class="ti ti-chevron-left"></i></button>
+      <button class="btn" onclick="calToday()">Hoy</button>
+      <button class="btn" onclick="calStep(1)" title="Siguiente"><i class="ti ti-chevron-right"></i></button>
+      <span class="cal-title" id="cal-title"></span>
+      <div class="legend">
+        <span><i class="lg-a2"></i>2 meses antes</span>
+        <span><i class="lg-a1"></i>1 mes antes</span>
+        <span><i class="lg-ev"></i>Anual</span>
+      </div>
+    </div>
+    <div id="cal-body"></div>
+  </div>
+
+  <div id="view-flujo" style="display:none;">
+    <div class="cal-bar">
+      <span style="font-size:13px; color:var(--text-muted);">Para que quede operativo</span>
+      <button class="btn" onclick="flujoStep(-1)" title="Mes anterior"><i class="ti ti-chevron-left"></i></button>
+      <select id="flujo-mes" class="btn" onchange="renderFlujo()" style="padding:6px 10px;"></select>
+      <button class="btn" onclick="flujoStep(1)" title="Mes siguiente"><i class="ti ti-chevron-right"></i></button>
+      <div class="legend">
+        <span><i class="lg-a2"></i>2 meses antes</span>
+        <span><i class="lg-a1"></i>1 mes antes</span>
+      </div>
+    </div>
+    <div id="flujo-body"></div>
+  </div>
+
+  <div id="view-apps" style="display:none;">
+    <button class="btn" onclick="openLinkModal()" style="margin-bottom:14px;"><i class="ti ti-plus"></i>Nuevo enlace</button>
+    <div id="apps-grid"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closePanel()"></div>
+
+<aside class="panel" id="panel">
+  <div class="panel-head">
+    <input type="text" id="p-title" class="panel-title-input" placeholder="Nombre de la tarea">
+    <div class="panel-meta">
+      <span class="area-dot" id="p-dot"></span>
+      <select id="p-area" class="meta-select" onchange="onAreaChange()">
+        <option value="centros">Gestión Centros</option>
+        <option value="oferta">Gestión Oferta</option>
+      </select>
+      <select id="p-icon" class="meta-select">
+        <option value="ti-list">Lista</option>
+        <option value="ti-file-plus">Documento</option>
+        <option value="ti-mail">Correo</option>
+        <option value="ti-send">Enviar</option>
+        <option value="ti-chart-line">Gráfica</option>
+        <option value="ti-building-store">Tienda</option>
+        <option value="ti-checklist">Checklist</option>
+        <option value="ti-circle-check">Validar</option>
+        <option value="ti-map-pin">Mapa</option>
+        <option value="ti-table">Tabla</option>
+      </select>
+    </div>
+  </div>
+  <div class="panel-body">
+    <div class="sec">
+      <p class="sec-title"><i class="ti ti-calendar-event"></i>Cuándo se hace</p>
+      <div class="fields">
+        <div class="field">
+          <label for="p-tipo">Repetición</label>
+          <select id="p-tipo" onchange="onTipoChange()">
+            <option value="">Sin programar</option>
+            <option value="mensual">Todos los meses</option>
+            <option value="anual">Todos los años</option>
+          </select>
+        </div>
+        <div class="field" id="f-ant">
+          <label for="p-ant">Antelación</label>
+          <select id="p-ant">
+            <option value="2">2 meses antes</option>
+            <option value="1">1 mes antes</option>
+            <option value="0">El mismo mes</option>
+          </select>
+        </div>
+        <div class="field" id="f-from">
+          <label for="p-from">Desde el día</label>
+          <input type="number" id="p-from" min="1" max="31" value="1">
+        </div>
+        <div class="field" id="f-to">
+          <label for="p-to">Hasta el día</label>
+          <input type="number" id="p-to" min="1" max="31" value="5">
+        </div>
+        <div class="field" id="f-fecha" style="display:none;">
+          <label for="p-fecha">Desde el día</label>
+          <input type="date" id="p-fecha">
+        </div>
+        <div class="field" id="f-fecha-fin" style="display:none;">
+          <label for="p-fecha-fin">Hasta el día</label>
+          <input type="date" id="p-fecha-fin">
+        </div>
+        <p class="hint wide" id="p-hint" style="grid-column:1/-1; margin:0;"></p>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="sec-title"><i class="ti ti-list-numbers"></i>Pasos</p>
+      <div id="p-steps"></div>
+      <div style="display:flex; gap:6px; margin-top:9px;">
+        <input type="text" id="p-new-step" placeholder="Añadir un paso" onkeydown="if(event.key==='Enter')addStep()">
+        <button class="btn" onclick="addStep()"><i class="ti ti-plus"></i></button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="sec-title"><i class="ti ti-link"></i>Enlaces</p>
+      <div id="p-links"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:6px; margin-top:9px;">
+        <input type="text" id="p-link-name" placeholder="Nombre">
+        <input type="text" id="p-link-url" placeholder="URL o ruta">
+        <button class="btn" onclick="addLink()"><i class="ti ti-plus"></i></button>
+      </div>
+    </div>
+  </div>
+  <div class="panel-foot">
+    <button class="btn btn-primary" onclick="savePanel()" style="flex:1;"><i class="ti ti-check"></i>Guardar</button>
+    <button class="btn" onclick="closePanel()">Cerrar</button>
+    <button class="btn" id="p-del" onclick="deleteTask()" style="color:#c92a2a; border-color:#c92a2a;"><i class="ti ti-trash"></i></button>
+  </div>
+</aside>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">Nueva tarea</h3>
+    <div class="fields">
+      <div class="field wide">
+        <label for="m-title">Nombre de la tarea</label>
+        <input type="text" id="m-title" placeholder="Por ejemplo: Crear QCC">
+      </div>
+      <div class="field">
+        <label for="m-area">Grupo</label>
+        <select id="m-area">
+          <option value="centros">Gestión Centros</option>
+          <option value="oferta">Gestión Oferta</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="m-icon">Icono</label>
+        <select id="m-icon">
+          <option value="ti-list">Lista</option>
+          <option value="ti-file-plus">Documento</option>
+          <option value="ti-mail">Correo</option>
+          <option value="ti-send">Enviar</option>
+          <option value="ti-chart-line">Gráfica</option>
+          <option value="ti-building-store">Tienda</option>
+          <option value="ti-checklist">Checklist</option>
+          <option value="ti-circle-check">Validar</option>
+          <option value="ti-map-pin">Mapa</option>
+          <option value="ti-table">Tabla</option>
+        </select>
+      </div>
+    </div>
+    <p class="hint" style="margin:0 0 14px;">Las fechas se ponen después, abriendo la tarea.</p>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeTaskModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="createTask()">Crear tarea</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="link-modal-bg">
+  <div class="modal">
+    <h3 id="lm-heading">Nuevo enlace</h3>
+    <div class="fields">
+      <div class="field wide">
+        <label for="lm-name">Nombre</label>
+        <input type="text" id="lm-name" placeholder="Por ejemplo: QCC Expansión">
+      </div>
+      <div class="field wide">
+        <label for="lm-url">Enlace o ruta</label>
+        <input type="text" id="lm-url" placeholder="https://… o C:\…">
+      </div>
+      <div class="field wide">
+        <label for="lm-icon-file">Icono (opcional)</label>
+        <input type="file" id="lm-icon-file" accept="image/*" onchange="onIconFileChange(event)">
+        <div class="icon-preview" id="lm-icon-preview">
+          <img id="lm-icon-preview-img" alt="">
+          <button class="btn" onclick="clearLinkIcon()"><i class="ti ti-x"></i>Quitar icono</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeLinkModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveLink()">Guardar enlace</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// ALMACENAMIENTO
+// Clave propia, distinta de la del planning por semanas, para que las
+// dos herramientas convivan sin pisarse los datos.
+// ══════════════════════════════════════════════════════════════
+const LS_KEY = 'mco_planning_fechas_v1';
+
+const AREAS = [
+  { id:'centros', label:'Gestión Centros', color:'teal' },
+  { id:'oferta',  label:'Gestión Oferta',  color:'blue' }
+];
+
+// Catálogo de partida: tus tareas actuales con sus pasos y enlaces.
+// Ninguna lleva fechas todavía: eso lo pones tú desde cada tarea.
+const SEED = [
+  { id:'qcc', areaId:'centros', title:'Crear QCC', icon:'ti-file-plus', sched:null,
+    steps:[
+      "Acceder al HTML del QCC de Expansión online",
+      "Actualizar los datos del HTML ejecutando la consulta de metabase y exportando en csv",
+      "Filtrar por mes y descargar en xlsx. Adjuntar por slack al canal Diario de los Colonialistas",
+      "Una vez actualizado por Alberto y Susi, actualizar el HTML, descargar en xlsx y pegar en Drive",
+      "Pasar a Maria la descarga completa para que envíe correo a CdM"
+    ],
+    links:[
+      {name:"HTML QCC Expansión online", url:"https://pepamiron.github.io/QCCExpansion2026/"},
+      {name:"Consulta Metabase", url:"https://metabase.prod.monline/question/32873-qcc-ntc-nsd-2026"},
+      {name:"Slack", url:"https://mercadonaonline.slack.com/archives/C0619RLG49Y"},
+      {name:"Drive", url:"https://docs.google.com/spreadsheets/d/1JRqWwX28IF2nfpzE6s7CsMkGVSpJ-TirC_vjXmJ2tK0/edit?gid=0#gid=0"}
+    ] },
+  { id:'bote', areaId:'centros', title:'Curar Bote Centros', icon:'ti-checklist', sched:null,
+    steps:[
+      "Activar el servicio de NTC y NSD de las aperturas",
+      "NTC = fecha inicio mismo día de la apertura y se debe cargar mínimo 15 días antes del 1er día de formación",
+      "NSD = fecha inicio un día antes de la apertura y se debe cargar mínimo 2 días antes de esa fecha",
+      "En caso de que las tiendas estén activas en TC, avisadles para que carguen la baja"
+    ],
+    links:[
+      {name:"Bote Centro", url:"https://vhmcapfi100lb.sap.mercadona.com/sap/bc/ui2/flp"}
+    ] },
+  { id:'cmo', areaId:'centros', title:'Curar Centros MO', icon:'ti-building-store', sched:null,
+    steps:[
+      "Cargar en centros MO los cambios de CP o de modelo",
+      "Actualizar en Drive las planificaciones realizadas",
+      "Contrastar que los datos de Centros MO y Drive coinciden"
+    ],
+    links:[
+      {name:"CentrosMo", url:"https://centrosmo.prod.monline/centers/vlc1/"},
+      {name:"Drive planificaciones", url:"https://docs.google.com/spreadsheets/d/1DgJvulxq9bI_4owljXm-yj3SKVKEs9PL/edit?gid=1858854927#gid=1858854927"},
+      {name:"Comparador", url:"https://pepamiron.github.io/COMPARADORES/"}
+    ] },
+  { id:'cdm', areaId:'centros', title:'Informar Cambios CdM', icon:'ti-mail', sched:null,
+    steps:[
+      "Acceder a Control de cambios",
+      "Actualizar los datos por si hubieran cambiado, ejecutando la consulta de metabase",
+      "Seleccionar el mes a informar y solo Tiendas",
+      "Verificar que todos los datos de la tabla son ok",
+      "Exportar a Excel y pegar en Plantilla Envío (PlantillaCorreosNTC.xlxm) en la pestaña Datos",
+      "Ejecutar la consulta de cambios área reparto del mes a informar y exportar a json. Mover el documento a la ruta del enlace Generar Mapas con nombre mes Mmmm.json",
+      "Desde \"Generar_pdfs.bat\" generar todos los mapas de Área de Servicio del mes a enviar",
+      "Generar las planificaciones anuales del mes a enviar, exportar a pdf y guardar los pdfs en la misma carpeta de los mapas",
+      "Copiar la ruta de los pdf y pegar en la plantilla de envio, pestaña Datos",
+      "Ejecutar correos. Se generan borradores en Outlook"
+    ],
+    links:[
+      {name:"Control de cambios", url:"https://pepamiron.github.io/control-cambios-ntc/"},
+      {name:"Consulta Control de cambios", url:"https://metabase.prod.monline/question/32892-control-de-cambios"},
+      {name:"Plantilla de Envio", url:"https://mercadona365-my.sharepoint.com/personal/pmiron_mercadona_es/Documents/Documents/Venta y planificación"},
+      {name:"Consulta metabase areas reparto", url:"https://metabase.prod.monline/question/33813-consulta-areas-reparto-para-generar-mapas-pdf?mes=&tipo_centro="},
+      {name:"Drive control de cambios", url:"https://docs.google.com/spreadsheets/d/1pWK-9kQTLQieeBpAr084azxtcuhyO0mc11PNrrQfMMk/edit?gid=0#gid=0"}
+    ] },
+  { id:'ccpp', areaId:'centros', title:'Mandar Correo Cambios CCPP', icon:'ti-send', sched:null,
+    steps:[
+      "Acceder a la consulta y exportar a Excel",
+      "Enviar por correo"
+    ],
+    links:[
+      {name:"Consulta Movimientos", url:"https://metabase.prod.monline/question/33103-tabla-movimientos-cp-mensuales-para-enviar-por-correo"},
+      {name:"Guardar excel", url:"C:\\Users\\pmiron\\OneDrive - Mercadona\\Documents\\Venta y planificación\\Cambios codigos postales"}
+    ] },
+  { id:'propventa', areaId:'oferta', title:'Validar Propuesta Venta', icon:'ti-circle-check', sched:null,
+    steps:[
+      "Negocio publica en canal slack las replanificaciones",
+      "Contactar con las tiendas implicadas e informar de los cambios a través de la vista preliminar en los meses afectados",
+      "Rellenar las Subidas Oferta en el Drive de Merca Oferta",
+      "Informar por slack de la cumplimentación"
+    ],
+    links:[
+      {name:"Subidas Oferta", url:"https://docs.google.com/spreadsheets/d/1DhX8natid7bkb3UljV7oIawNYdEyMsxTZC3l8EqvvKE/edit?gid=919618989#gid=919618989"},
+      {name:"Venta Mo", url:"https://ventamo.prod.monline/"}
+    ] },
+  { id:'planif', areaId:'oferta', title:'Enviar Planificaciones', icon:'ti-send', sched:null,
+    steps:[
+      "Negocio publica el entregable",
+      "Abrir el drive y pegar la nueva oferta. Ejecutar Scripts y descargar en pdf",
+      "Abrir enlace envío planificaciones. Pegar las rutas de los pdf descargados y ejecutar envio"
+    ],
+    links:[
+      {name:"Drive Planificaciones", url:"https://docs.google.com/spreadsheets/d/19h8h3Ni8Dq46Ned0wguPYaR305yclw4C2yqGt0Z0mto/edit?gid=2114995375#gid=2114995375"},
+      {name:"Envio Planificaciones", url:"C:\\Users\\pmiron\\OneDrive - Mercadona\\Documentos\\Cambios Planificación.xlsm"}
+    ] }
+];
+
+let TASKS = loadTasks();
+let APPS = loadApps();
+let TASK_MAP = {};
+let activeId = null;
+let currentView = 'calendario';
+let calMode = 'mes';
+let calRef = new Date();
+
+function loadTasks() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Antes se guardaba solo el array de tareas; ahora {tasks, apps}
+      const arr = Array.isArray(parsed) ? parsed : parsed.tasks;
+      if (Array.isArray(arr) && arr.length) {
+        // Las guardadas con el tipo antiguo "eventual" pasan a ser anuales
+        arr.forEach(t => {
+          if (t.sched && t.sched.tipo === 'eventual') t.sched.tipo = 'anual';
+        });
+        return arr;
+      }
+    }
+  } catch (e) {}
+  return SEED.map(t => ({ ...t, steps: [...t.steps], links: t.links.map(l => ({...l})) }));
+}
+
+function loadApps() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) && Array.isArray(parsed.apps)) return parsed.apps;
+    }
+    // Primera vez: si el planning por semanas está en este mismo navegador,
+    // se reutilizan sus enlaces para no tener que volver a escribirlos.
+    const viejo = localStorage.getItem('mco_planning_v2');
+    if (viejo) {
+      const p = JSON.parse(viejo);
+      if (p && Array.isArray(p.quickLinks)) return p.quickLinks.map(l => ({...l}));
+    }
+  } catch (e) {}
+  return [];
+}
+
+function save() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ tasks: TASKS, apps: APPS }));
+    setStatus('ok', 'Guardado');
+  } catch (e) {
+    setStatus('err', 'No se pudo guardar en este navegador');
+  }
+}
+
+function setStatus(kind, txt) {
+  const el = document.getElementById('status');
+  el.className = 'status' + (kind ? ' ' + kind : '');
+  document.getElementById('status-txt').textContent = txt;
+}
+
+function rebuildMap() {
+  TASK_MAP = {};
+  TASKS.forEach(t => { TASK_MAP[t.id] = t; });
+}
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Clase de color según la antelación con la que se trabaja la tarea
+function antClass(s) {
+  if (!s) return '';
+  if (s.tipo === 'anual') return 'ev';
+  return Number(s.offset) >= 2 ? 'a2' : 'a1';
+}
+function antLabel(s) {
+  if (!s) return '';
+  if (s.tipo === 'anual') return 'Anual';
+  const n = Number(s.offset);
+  return n === 0 ? 'Mismo mes' : (n === 1 ? 'M+1' : 'M+' + n);
+}
+
+// Texto legible de la programación de una tarea
+function schedText(s) {
+  if (!s) return 'Sin fechas';
+  if (s.tipo === 'anual') {
+    if (!s.fecha) return 'Sin fechas';
+    const a = new Date(s.fecha + 'T00:00:00');
+    const b = new Date((s.fechaFin || s.fecha) + 'T00:00:00');
+    const dI = a.getDate(), mI = MES_CORTO[a.getMonth()];
+    const dF = b.getDate(), mF = MES_CORTO[b.getMonth()];
+    if (dI === dF && a.getMonth() === b.getMonth()) return `Cada año, el ${dI} ${mI}`;
+    if (a.getMonth() === b.getMonth()) return `Cada año, del ${dI} al ${dF} ${mI}`;
+    return `Cada año, del ${dI} ${mI} al ${dF} ${mF}`;
+  }
+  const r = s.dayFrom === s.dayTo ? ('El día ' + s.dayFrom) : ('Del ' + s.dayFrom + ' al ' + s.dayTo);
+  const n = Number(s.offset);
+  const para = n === 0 ? 'para el mes en curso' : (n === 1 ? 'para el mes siguiente' : 'para dentro de ' + n + ' meses');
+  return r + ' · ' + para;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CATÁLOGO
+// ══════════════════════════════════════════════════════════════
+function renderCatalogo() {
+  const wrap = document.getElementById('view-catalogo');
+  wrap.innerHTML = AREAS.map(a => {
+    const list = TASKS.filter(t => t.areaId === a.id);
+    const cards = list.length
+      ? `<div class="cards">${list.map(t => cardHTML(t, a)).join('')}</div>`
+      : `<p class="empty">Todavía no hay tareas en este grupo.</p>`;
+    return `
+      <div class="area">
+        <div class="area-head">
+          <span class="area-dot ${a.color}"></span>
+          <span class="area-name">${esc(a.label)}</span>
+          <span class="area-count">${list.length} ${list.length === 1 ? 'tarea' : 'tareas'}</span>
+        </div>
+        ${cards}
+      </div>`;
+  }).join('');
+}
+
+function cardHTML(t, a) {
+  const s = t.sched;
+  const cls = antClass(s);
+  return `
+    <div class="card ${a.color}" draggable="true" data-id="${t.id}"
+         onclick="openPanel('${t.id}')"
+         ondragstart="onCardDragStart(event,'${t.id}')"
+         ondragover="onCardDragOver(event,'${t.id}')"
+         ondragleave="onCardDragLeave(event)"
+         ondrop="onCardDrop(event,'${t.id}')"
+         ondragend="onCardDragEnd(event)">
+      <div class="card-top">
+        <div class="card-title"><i class="ti ${esc(t.icon)}"></i>${esc(t.title)}</div>
+        ${s ? `<span class="tag-ant ${cls}">${esc(antLabel(s))}</span>` : ''}
+      </div>
+      <div class="sched-line ${s ? '' : 'none'}">
+        <i class="ti ${s ? 'ti-calendar-event' : 'ti-calendar-off'}"></i>${esc(schedText(s))}
+      </div>
+      <div class="badges">
+        ${t.steps.length ? `<span class="badge steps"><i class="ti ti-list-numbers"></i>${t.steps.length} pasos</span>` : ''}
+        ${t.links.length ? `<span class="badge links"><i class="ti ti-link"></i>${t.links.length} enlaces</span>` : ''}
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CALENDARIO
+// Una tarea mensual con rango dayFrom–dayTo aparece en TODOS los meses.
+// Su antelación dice a qué mes sirve esa ocurrencia.
+// ══════════════════════════════════════════════════════════════
+function occurrencesIn(year, month) {
+  const total = daysInMonth(year, month);
+  const out = [];
+  TASKS.forEach(t => {
+    const s = t.sched;
+    if (!s) return;
+    if (s.tipo === 'anual') {
+      if (!s.fecha) return;
+      // Solo cuentan día y mes: el año guardado se ignora y la tarea
+      // se repite todos los años en esas mismas fechas.
+      const a = new Date(s.fecha + 'T00:00:00');
+      const b = new Date((s.fechaFin || s.fecha) + 'T00:00:00');
+      const mesI = a.getMonth(), diaI = a.getDate();
+      const mesF = b.getMonth(), diaF = b.getDate();
+      // Si el final cae antes que el inicio, el rango cruza fin de año
+      const cruzaAnio = (mesF < mesI) || (mesF === mesI && diaF < diaI);
+      const mIni = new Date(year, month, 1);
+      const mFin = new Date(year, month, total);
+      // Se prueban el año anterior y el actual: así un rango que empieza
+      // en diciembre se sigue viendo en el enero siguiente.
+      [year - 1, year].forEach(cy => {
+        const ini = new Date(cy, mesI, Math.min(diaI, daysInMonth(cy, mesI)));
+        const fy = cruzaAnio ? cy + 1 : cy;
+        const fin = new Date(fy, mesF, Math.min(diaF, daysInMonth(fy, mesF)));
+        if (fin < mIni || ini > mFin) return;
+        out.push({
+          task: t,
+          from: ini < mIni ? 1 : ini.getDate(),
+          to:   fin > mFin ? total : fin.getDate(),
+          sched: s
+        });
+      });
+      return;
+    }
+    const from = Math.min(Math.max(1, Number(s.dayFrom) || 1), total);
+    const to = Math.min(Math.max(from, Number(s.dayTo) || from), total);
+    out.push({ task: t, from, to, sched: s });
+  });
+  // Primero las que empiezan antes; a igual inicio, las más largas arriba
+  out.sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
+  return out;
+}
+
+// Mes al que sirve una ocurrencia de un mes dado
+function targetMonth(year, month, s) {
+  const n = s.tipo !== 'mensual' ? 0 : Number(s.offset) || 0;
+  const d = new Date(year, month + n, 1);
+  return MES_CORTO[d.getMonth()] + (d.getFullYear() !== year ? ' ' + d.getFullYear() : '');
+}
+
+function monthBlockHTML(year, month, compact) {
+  const total = daysInMonth(year, month);
+  const occ = occurrencesIn(year, month);
+  const today = new Date();
+  const rows = occ.length;
+
+  let head = '';
+  for (let d = 1; d <= total; d++) {
+    const date = new Date(year, month, d);
+    const dow = date.getDay();
+    const isWe = dow === 0 || dow === 6;
+    const isToday = sameDay(date, today);
+    const cls = 'day-h' + (isToday ? ' today' : (isWe ? ' we' : ''));
+    const show = compact ? (d % 5 === 0 || d === 1 ? d : '') : d;
+    head += `<div class="${cls}" style="grid-column:${d}; grid-row:1;">${show}</div>`;
+  }
+
+  const bars = occ.map((o, i) => {
+    const s = o.sched;
+    const label = s.tipo !== 'mensual'
+      ? o.task.title
+      : `${o.task.title} · ${targetMonth(year, month, s)}`;
+    return `<div class="bar ${antClass(s)}" style="grid-column:${o.from} / ${o.to + 1}; --row:${i + 2};"
+      onclick="openPanel('${o.task.id}')" title="${esc(label)} — ${esc(schedText(s))}">
+      <i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span></div>`;
+  }).join('');
+
+  const grid = `<div class="scale ${compact ? '' : 'mes'}" style="grid-template-columns:repeat(${total},minmax(0,1fr)); grid-template-rows:auto repeat(${rows},auto);">${head}${bars}</div>`;
+  const vacio = `<p class="empty">Ninguna tarea programada en este mes.</p>`;
+
+  return `
+    <div class="month">
+      <div class="month-name">${MESES[month]} ${year}
+        <span class="n-tasks">${occ.length ? occ.length + (occ.length === 1 ? ' tarea' : ' tareas') : ''}</span>
+      </div>
+      ${rows ? grid : vacio}
+    </div>`;
+}
+
+function renderCalendario() {
+  const body = document.getElementById('cal-body');
+  const title = document.getElementById('cal-title');
+  const y = calRef.getFullYear(), m = calRef.getMonth();
+
+  // Solo la vista de mes usa todo el ancho; el resto se queda en 1500 px
+  aplicarAncho();
+
+  const programadas = TASKS.filter(t => t.sched).length;
+  if (!programadas) {
+    title.textContent = '';
+    body.innerHTML = `
+      <div class="cal-empty">
+        <strong>El calendario está vacío</strong>
+        Abre una tarea en el catálogo y dile en qué días se hace.<br>
+        Aparecerá aquí, repetida en todos los meses.
+      </div>`;
+    return;
+  }
+
+  if (calMode === 'anio') {
+    title.textContent = y;
+    // Tres bloques por fila: cada fila es un trimestre
+    body.innerHTML = [0, 3, 6, 9].map(ini =>
+      `<div class="trimestre">${
+        [0, 1, 2].map(k => monthBlockHTML(y, ini + k, true)).join('')
+      }</div>`
+    ).join('');
+    return;
+  }
+
+  if (calMode === 'dia') {
+    const d = calRef.getDate();
+    title.textContent = `${d} de ${MESES[m]} de ${y}`;
+    const hoy = occurrencesIn(y, m).filter(o => d >= o.from && d <= o.to);
+    body.innerHTML = hoy.length
+      ? `<div class="day-list">${hoy.map(o => {
+          const s = o.sched;
+          const label = s.tipo !== 'mensual' ? o.task.title : `${o.task.title} · ${targetMonth(y, m, s)}`;
+          return `<div class="bar ${antClass(s)}" style="grid-column:auto; --row:auto; padding:9px 12px; font-size:13px;"
+            onclick="openPanel('${o.task.id}')">
+            <i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span>
+            <span style="margin-left:auto; font-size:11px; opacity:.8; flex-shrink:0;">${esc(schedText(s))}</span></div>`;
+        }).join('')}</div>`
+      : `<div class="cal-empty"><strong>Nada previsto para este día</strong>Usa las flechas para moverte.</div>`;
+    return;
+  }
+
+  if (calMode === 'semana') {
+    const { ini, fin } = weekRange(calRef);
+    title.textContent = tituloSemana(ini, fin);
+    body.innerHTML = weekBlockHTML(ini, fin);
+    return;
+  }
+
+  title.textContent = `${MESES[m]} ${y}`;
+  body.innerHTML = monthWeeksHTML(y, m);
+}
+
+// ── Reordenar tareas del catálogo (arrastrar y soltar) ───────────
+let dragTaskId = null;
+
+function onCardDragStart(ev, id) {
+  dragTaskId = id;
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', id); } catch (e) {}
+  ev.currentTarget.classList.add('dragging');
+}
+function onCardDragOver(ev, id) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  if (dragTaskId && dragTaskId !== id) ev.currentTarget.classList.add('drop-target');
+}
+function onCardDragLeave(ev) { ev.currentTarget.classList.remove('drop-target'); }
+function onCardDrop(ev, id) {
+  ev.preventDefault();
+  ev.stopPropagation();                      // no abrir el panel al soltar
+  ev.currentTarget.classList.remove('drop-target');
+  if (!dragTaskId || dragTaskId === id) return;
+  const desde = TASKS.findIndex(t => t.id === dragTaskId);
+  const hasta = TASKS.findIndex(t => t.id === id);
+  if (desde < 0 || hasta < 0) return;
+  const [movida] = TASKS.splice(desde, 1);
+  TASKS.splice(TASKS.findIndex(t => t.id === id) + (desde < hasta ? 1 : 0), 0, movida);
+  dragTaskId = null;
+  save();
+  render();
+  toast('Orden actualizado');
+}
+function onCardDragEnd(ev) {
+  dragTaskId = null;
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('dragging', 'drop-target'));
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLUJO MENSUAL
+// Al revés que el calendario: se elige el mes que tiene que quedar
+// operativo y se listan las acciones previas con sus fechas reales,
+// retrocediendo tantos meses como diga la antelación de cada tarea.
+// ══════════════════════════════════════════════════════════════
+let flujoRef = new Date();
+flujoRef.setDate(1);
+flujoRef.setMonth(flujoRef.getMonth() + 1);   // por defecto, el mes siguiente
+
+function flujoItems(year, month) {
+  const out = [];
+  TASKS.forEach(t => {
+    const s = t.sched;
+    if (!s || s.tipo !== 'mensual') return;   // las anuales no sirven a un mes concreto
+    const n = Number(s.offset) || 0;
+    const ref = new Date(year, month - n, 1);
+    const wy = ref.getFullYear(), wm = ref.getMonth();
+    const total = daysInMonth(wy, wm);
+    const from = Math.min(Math.max(1, Number(s.dayFrom) || 1), total);
+    const to = Math.min(Math.max(from, Number(s.dayTo) || from), total);
+    out.push({
+      task: t, sched: s, wy, wm, from, to,
+      ini: new Date(wy, wm, from), fin: new Date(wy, wm, to)
+    });
+  });
+  out.sort((a, b) => a.ini - b.ini);
+  return out;
+}
+
+function rellenarSelectorFlujo() {
+  const sel = document.getElementById('flujo-mes');
+  if (!sel) return;
+  const base = new Date();
+  base.setDate(1);
+  let html = '';
+  for (let i = -6; i <= 18; i++) {           // dos años de margen alrededor de hoy
+    const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
+    const v = `${d.getFullYear()}-${d.getMonth()}`;
+    html += `<option value="${v}">${MESES[d.getMonth()]} ${d.getFullYear()}</option>`;
+  }
+  sel.innerHTML = html;
+  sel.value = `${flujoRef.getFullYear()}-${flujoRef.getMonth()}`;
+}
+
+function flujoStep(dir) {
+  flujoRef.setMonth(flujoRef.getMonth() + dir);
+  rellenarSelectorFlujo();
+  renderFlujo();
+}
+
+function renderFlujo() {
+  const sel = document.getElementById('flujo-mes');
+  const body = document.getElementById('flujo-body');
+  if (!sel || !body) return;
+
+  const [sy, sm] = sel.value.split('-').map(Number);
+  if (!isNaN(sy)) flujoRef = new Date(sy, sm, 1);
+  const year = flujoRef.getFullYear(), month = flujoRef.getMonth();
+
+  const items = flujoItems(year, month);
+  if (!items.length) {
+    body.innerHTML = `<div class="cal-empty"><strong>No hay acciones para este mes</strong>
+      Solo aparecen las tareas que se repiten todos los meses y tienen antelación.</div>`;
+    return;
+  }
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  // Agrupadas por el mes en el que se trabajan
+  let html = '';
+  let mesActual = null;
+  items.forEach(it => {
+    const clave = it.wy + '-' + it.wm;
+    if (clave !== mesActual) {
+      mesActual = clave;
+      html += `<div class="flujo-mes-head">${MESES[it.wm]} ${it.wy}</div>`;
+    }
+    const area = AREAS.find(a => a.id === it.task.areaId);
+    const estado = it.fin < hoy ? 'pasado' : (it.ini > hoy ? 'futuro' : 'curso');
+    const txtEstado = estado === 'pasado' ? 'Ya pasó' : (estado === 'curso' ? 'En plazo ahora' : 'Pendiente');
+    const rango = it.from === it.to
+      ? `${it.from} ${MES_CORTO[it.wm]}`
+      : `${it.from}–${it.to} ${MES_CORTO[it.wm]}`;
+    const n = Number(it.sched.offset) || 0;
+    html += `
+      <div class="flujo-row ${estado}" onclick="openPanel('${it.task.id}')">
+        <span class="flujo-fecha">${rango}</span>
+        <span class="area-dot ${area ? area.color : 'teal'}"></span>
+        <i class="ti ${esc(it.task.icon)}"></i>
+        <span class="bar-txt flujo-nombre">${esc(it.task.title)}</span>
+        <span class="tag-ant ${n >= 2 ? '' : 'a1'}">${n === 0 ? 'Mismo mes' : 'M-' + n}</span>
+        <span class="flujo-estado">${txtEstado}</span>
+      </div>`;
+  });
+
+  body.innerHTML = `
+    <div class="month">
+      <div class="month-name">Para tener operativo ${MESES[month]} ${year}
+        <span class="n-tasks">${items.length} ${items.length === 1 ? 'acción' : 'acciones'}</span>
+      </div>
+      ${html}
+    </div>`;
+}
+
+// ── Vista de año: matriz de tareas por meses ─────────────────────
+// Una fila por tarea y doce columnas de mes. El nombre se lee una sola vez,
+// así que nunca se corta, y cada celda sitúa la tarea dentro de su mes:
+// pegada a la izquierda es principio de mes, a la derecha final.
+function yearMatrixHTML(year) {
+  const hoy = new Date();
+  const mesHoy = hoy.getFullYear() === year ? hoy.getMonth() : -1;
+
+  // Ocurrencias de cada mes, calculadas una vez
+  const porMes = Array.from({ length: 12 }, (_, m) => occurrencesIn(year, m));
+
+  let head = `<div></div>` + MES_CORTO.map((mc, m) =>
+    `<div class="ym-head${m === mesHoy ? ' hoy' : ''}">${mc}</div>`).join('');
+
+  let filas = '';
+  AREAS.forEach(a => {
+    const tareas = TASKS.filter(t => t.areaId === a.id && t.sched);
+    if (!tareas.length) return;
+    filas += `<div class="ym-area"><span class="area-dot ${a.color}"></span>${esc(a.label)}</div>`;
+
+    tareas.forEach(t => {
+      filas += `<div class="ym-name" onclick="openPanel('${t.id}')" title="${esc(t.title)} — ${esc(schedText(t.sched))}">
+        <i class="ti ${esc(t.icon)}"></i><span class="bar-txt">${esc(t.title)}</span></div>`;
+
+      for (let m = 0; m < 12; m++) {
+        const total = daysInMonth(year, m);
+        const marcas = porMes[m].filter(o => o.task.id === t.id).map(o => {
+          const izq = ((o.from - 1) / total) * 100;
+          const ancho = ((o.to - o.from + 1) / total) * 100;
+          return `<span class="ym-mark ${antClass(o.sched)}" style="left:${izq}%; width:${ancho}%;"></span>`;
+        }).join('');
+        const mesObj = marcas && t.sched.tipo === 'mensual' ? ` · para ${targetMonth(year, m, t.sched)}` : '';
+        filas += `<div class="ym-cell${m === mesHoy ? ' hoy' : ''}" onclick="openPanel('${t.id}')"
+          title="${esc(MESES[m])}${mesObj}">${marcas}</div>`;
+      }
+    });
+  });
+
+  if (!filas) return `<div class="cal-empty"><strong>El calendario está vacío</strong>Abre una tarea en el catálogo y dile en qué días se hace.</div>`;
+
+  return `<div class="month"><div class="ymatrix">${head}${filas}</div></div>`;
+}
+
+// ── Vista de semana ──────────────────────────────────────────────
+// Lunes a domingo. La semana puede caer entre dos meses, así que se
+// recogen las tareas de todos los meses que toca.
+function weekRange(ref) {
+  const ini = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  ini.setDate(ini.getDate() - ((ini.getDay() + 6) % 7));
+  const fin = new Date(ini);
+  fin.setDate(fin.getDate() + 6);
+  return { ini, fin };
+}
+
+function tituloSemana(ini, fin) {
+  if (ini.getMonth() === fin.getMonth()) {
+    return `${ini.getDate()} – ${fin.getDate()} de ${MESES[ini.getMonth()]} ${ini.getFullYear()}`;
+  }
+  const a = `${ini.getDate()} ${MES_CORTO[ini.getMonth()]}`;
+  const b = `${fin.getDate()} ${MES_CORTO[fin.getMonth()]}`;
+  return `${a} – ${b} ${fin.getFullYear()}`;
+}
+
+function occurrencesInWeek(ini, fin) {
+  const out = [];
+  const visto = new Set();
+  // Meses que toca la semana (uno o dos)
+  const cur = new Date(ini.getFullYear(), ini.getMonth(), 1);
+  const last = new Date(fin.getFullYear(), fin.getMonth(), 1);
+  while (cur <= last) {
+    const mY = cur.getFullYear(), mM = cur.getMonth();
+    occurrencesIn(mY, mM).forEach(o => {
+      const a = new Date(mY, mM, o.from);
+      const b = new Date(mY, mM, o.to);
+      if (b < ini || a > fin) return;
+      const clave = o.task.id + '|' + a.getTime() + '|' + b.getTime();
+      if (visto.has(clave)) return;      // evita repetir si la semana cruza meses
+      visto.add(clave);
+      out.push({
+        task: o.task, sched: o.sched,
+        from: Math.max(0, Math.round((a - ini) / 86400000)) + 1,
+        to:   Math.min(6, Math.round((b - ini) / 86400000)) + 1,
+        mesY: mY, mesM: mM
+      });
+    });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  out.sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
+  return out;
+}
+
+const DIAS_SEM = ['lun','mar','mié','jue','vie','sáb','dom'];
+
+// Tira de una semana: 7 columnas con sus barras. mesFoco, si se pasa, atenúa
+// los días que caen fuera de ese mes (se usa al apilar semanas en la vista de mes).
+function weekStripHTML(ini, fin, mesFoco) {
+  const occ = occurrencesInWeek(ini, fin);
+  const today = new Date();
+  const rows = occ.length;
+
+  let fondo = '';
+  let head = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(ini);
+    d.setDate(d.getDate() + i);
+    const fuera = (mesFoco !== undefined && d.getMonth() !== mesFoco);
+    const esHoy = sameDay(d, today);
+
+    // Columna de fondo: recorre la semana entera y ancla las barras a su día
+    fondo += `<div class="col-bg${esHoy ? ' hoy' : (i >= 5 ? ' we' : '')}"
+      style="grid-column:${i + 1}; grid-row:1 / -1;"></div>`;
+
+    const cls = 'day-h sem' + (esHoy ? ' today' : (i >= 5 ? ' we' : '')) + (fuera ? ' fuera' : '');
+    head += `<div class="${cls}" style="grid-column:${i + 1}; grid-row:1;">
+      ${DIAS_SEM[i]} ${d.getDate()}${d.getDate() === 1 ? ' ' + MES_CORTO[d.getMonth()] : ''}</div>`;
+  }
+
+  const bars = occ.map((o, i) => {
+    const s = o.sched;
+    const area = AREAS.find(a => a.id === o.task.areaId);
+    const label = s.tipo !== 'mensual'
+      ? o.task.title
+      : `${o.task.title} · ${targetMonth(o.mesY, o.mesM, s)}`;
+    return `<div class="bar ${antClass(s)}" style="grid-column:${o.from} / ${o.to + 1}; --row:${i + 2};"
+      onclick="openPanel('${o.task.id}')" title="${esc(label)} — ${esc(schedText(s))}">
+      <span class="area-dot ${area ? area.color : 'teal'}"></span><i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span></div>`;
+  }).join('');
+
+  return `<div class="scale semana" style="grid-template-columns:repeat(7,minmax(0,1fr)); grid-template-rows:auto repeat(${rows || 1},auto);">${fondo}${head}${bars}</div>`;
+}
+
+function weekBlockHTML(ini, fin) {
+  const occ = occurrencesInWeek(ini, fin);
+  return `
+    <div class="month">
+      <div class="month-name">${tituloSemana(ini, fin)}
+        <span class="n-tasks">${occ.length ? occ.length + (occ.length === 1 ? ' tarea' : ' tareas') : ''}</span>
+      </div>
+      <div class="sem-fila">${weekStripHTML(ini, fin)}</div>
+      ${occ.length ? '' : `<p class="empty">Ninguna tarea programada esta semana.</p>`}
+    </div>`;
+}
+
+// Vista de mes apilando las semanas, una fila por semana.
+function monthWeeksHTML(year, month) {
+  const occ = occurrencesIn(year, month);
+  const ultimo = new Date(year, month, daysInMonth(year, month));
+  const cur = weekRange(new Date(year, month, 1)).ini;
+
+  const filas = [];
+  while (cur <= ultimo) {
+    const ini = new Date(cur);
+    const fin = new Date(cur);
+    fin.setDate(fin.getDate() + 6);
+    const nOcc = occurrencesInWeek(ini, fin).length;
+    filas.push(`<div class="sem-fila${nOcc ? '' : ' vacia'}">${weekStripHTML(ini, fin, month)}</div>`);
+    cur.setDate(cur.getDate() + 7);
+  }
+
+  return `
+    <div class="month">
+      <div class="month-name">${MESES[month]} ${year}
+        <span class="n-tasks">${occ.length ? occ.length + (occ.length === 1 ? ' tarea' : ' tareas') : ''}</span>
+      </div>
+      ${filas.join('')}
+    </div>`;
+}
+
+function aplicarAncho() {
+  const w = document.querySelector('.wrap');
+  if (w) w.classList.toggle('ancho',
+    currentView === 'calendario' && calMode !== 'dia');
+}
+
+function setCalMode(mode) {
+  calMode = mode;
+  ['dia','semana','mes','anio'].forEach(k => {
+    document.getElementById('cv-' + k).classList.toggle('active', k === mode);
+  });
+  renderCalendario();
+}
+function calStep(dir) {
+  if (calMode === 'dia') calRef.setDate(calRef.getDate() + dir);
+  else if (calMode === 'semana') calRef.setDate(calRef.getDate() + dir * 7);
+  else if (calMode === 'mes') calRef.setMonth(calRef.getMonth() + dir);
+  else calRef.setFullYear(calRef.getFullYear() + dir);
+  renderCalendario();
+}
+function calToday() { calRef = new Date(); renderCalendario(); }
+
+// ══════════════════════════════════════════════════════════════
+// APPS
+// ══════════════════════════════════════════════════════════════
+function renderApps() {
+  const wrap = document.getElementById('apps-grid');
+  if (!APPS.length) {
+    wrap.innerHTML = `<p class="empty">Sin enlaces todavía. Pulsa "Nuevo enlace" para añadir el primero.</p>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="links-grid" id="links-grid">${APPS.map((l, idx) => {
+    const iconHTML = l.icon
+      ? `<img src="${esc(l.icon)}" class="link-card-icon-img" alt="">`
+      : `<i class="ti ti-link"></i>`;
+    return `
+    <div class="link-card" draggable="true" data-idx="${idx}"
+         ondragstart="onLinkDragStart(event, ${idx})"
+         ondragover="onLinkDragOver(event, ${idx})"
+         ondragleave="onLinkDragLeave(event)"
+         ondrop="onLinkDrop(event, ${idx})"
+         ondragend="onLinkDragEnd(event)">
+      <i class="ti ti-grip-vertical link-card-drag"></i>
+      <div class="link-card-name">${iconHTML}${esc(l.name)}</div>
+      <div class="link-card-actions">
+        <a class="link-card-open" href="${esc(l.url)}" target="_blank" rel="noopener" draggable="false"><i class="ti ti-external-link"></i>Abrir</a>
+        <div class="link-card-hover-actions">
+          <button class="link-card-icon-btn" onclick="openLinkModal('${esc(l.id)}')" title="Editar"><i class="ti ti-pencil"></i></button>
+          <button class="link-card-icon-btn danger" onclick="deleteLink('${esc(l.id)}', event)" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+let editingLinkId = null;
+let pendingIconDataUrl = null;
+
+// Redimensiona la imagen subida a un cuadrado pequeño (recortando al centro)
+// para que el icono ocupe poco espacio al guardarlo junto con el resto de datos.
+function resizeImageFile(file, size) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const s = Math.min(img.width, img.height);
+        const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+        ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function showLinkIconPreview(url) {
+  const wrap = document.getElementById('lm-icon-preview');
+  const img = document.getElementById('lm-icon-preview-img');
+  if (url) { img.src = url; wrap.style.display = 'flex'; }
+  else { wrap.style.display = 'none'; }
+}
+
+async function onIconFileChange(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  try {
+    pendingIconDataUrl = await resizeImageFile(file, 64);
+    showLinkIconPreview(pendingIconDataUrl);
+  } catch (e) {
+    toast('No se pudo leer esa imagen');
+  }
+}
+
+function clearLinkIcon() {
+  pendingIconDataUrl = null;
+  document.getElementById('lm-icon-file').value = '';
+  showLinkIconPreview(null);
+}
+
+function openLinkModal(id) {
+  editingLinkId = id || null;
+  const link = id ? APPS.find(l => l.id === id) : null;
+  document.getElementById('lm-heading').textContent = id ? 'Editar enlace' : 'Nuevo enlace';
+  document.getElementById('lm-name').value = link ? link.name : '';
+  document.getElementById('lm-url').value = link ? link.url : '';
+  document.getElementById('lm-icon-file').value = '';
+  pendingIconDataUrl = (link && link.icon) ? link.icon : null;
+  showLinkIconPreview(pendingIconDataUrl);
+  document.getElementById('link-modal-bg').classList.add('open');
+  document.getElementById('lm-name').focus();
+}
+function closeLinkModal() {
+  document.getElementById('link-modal-bg').classList.remove('open');
+  editingLinkId = null;
+  pendingIconDataUrl = null;
+}
+
+function saveLink() {
+  const name = document.getElementById('lm-name').value.trim();
+  const url = document.getElementById('lm-url').value.trim();
+  if (!name || !url) { toast('Ponle nombre y enlace'); return; }
+  if (editingLinkId) {
+    const l = APPS.find(x => x.id === editingLinkId);
+    if (l) { l.name = name; l.url = url; l.icon = pendingIconDataUrl || null; }
+  } else {
+    APPS.push({
+      id: 'link_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name, url, icon: pendingIconDataUrl || null
+    });
+  }
+  save();
+  closeLinkModal();
+  renderApps();
+  toast('Enlace guardado');
+}
+
+function deleteLink(id, ev) {
+  if (ev) ev.stopPropagation();
+  const l = APPS.find(x => x.id === id);
+  if (!confirm(`¿Eliminar "${l ? l.name : 'este enlace'}"? No se puede deshacer.`)) return;
+  APPS = APPS.filter(x => x.id !== id);
+  save();
+  renderApps();
+  toast('Enlace eliminado');
+}
+
+// ── Reordenar apps (arrastrar y soltar) ──────────────────────────
+let dragLinkIdx = null;
+
+function onLinkDragStart(ev, idx) {
+  dragLinkIdx = idx;
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(idx)); } catch (e) {}
+  ev.currentTarget.classList.add('dragging');
+}
+function onLinkDragOver(ev, idx) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  if (dragLinkIdx !== null && dragLinkIdx !== idx) ev.currentTarget.classList.add('drop-target');
+}
+function onLinkDragLeave(ev) { ev.currentTarget.classList.remove('drop-target'); }
+function onLinkDrop(ev, idx) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drop-target');
+  if (dragLinkIdx === null || dragLinkIdx === idx) return;
+  const moved = APPS.splice(dragLinkIdx, 1)[0];
+  APPS.splice(idx, 0, moved);
+  dragLinkIdx = null;
+  save();
+  renderApps();
+  toast('Orden actualizado');
+}
+function onLinkDragEnd(ev) {
+  dragLinkIdx = null;
+  document.querySelectorAll('.link-card').forEach(c => c.classList.remove('dragging', 'drop-target'));
+}
+
+// ══════════════════════════════════════════════════════════════
+// VISTAS
+// ══════════════════════════════════════════════════════════════
+function switchView(v) {
+  currentView = v;
+  ['catalogo','calendario','flujo','apps'].forEach(k => {
+    document.getElementById('tab-' + k).classList.toggle('active', k === v);
+    document.getElementById('view-' + k).style.display = k === v ? '' : 'none';
+  });
+  render();
+}
+function render() {
+  rebuildMap();
+  aplicarAncho();
+  if (currentView === 'catalogo') renderCatalogo();
+  else if (currentView === 'flujo') { rellenarSelectorFlujo(); renderFlujo(); }
+  else if (currentView === 'apps') renderApps();
+  else renderCalendario();
+}
+
+// ══════════════════════════════════════════════════════════════
+// PANEL DE TAREA
+// ══════════════════════════════════════════════════════════════
+let draftSteps = [];
+let draftLinks = [];
+
+function openPanel(id) {
+  const t = TASK_MAP[id];
+  if (!t) return;
+  activeId = id;
+  draftSteps = [...t.steps];
+  draftLinks = t.links.map(l => ({...l}));
+  editandoLink = null;
+  editandoPaso = null;
+
+  document.getElementById('p-title').value = t.title;
+  document.getElementById('p-area').value = t.areaId;
+  document.getElementById('p-icon').value = t.icon || 'ti-list';
+  onAreaChange();
+
+  const s = t.sched;
+  document.getElementById('p-tipo').value = s ? s.tipo : '';
+  document.getElementById('p-ant').value = s && s.tipo === 'mensual' ? String(s.offset) : '2';
+  document.getElementById('p-from').value = s && s.tipo === 'mensual' ? s.dayFrom : 1;
+  document.getElementById('p-to').value = s && s.tipo === 'mensual' ? s.dayTo : 5;
+  document.getElementById('p-fecha').value = s && s.tipo === 'anual' ? (s.fecha || '') : '';
+  document.getElementById('p-fecha-fin').value = s && s.tipo === 'anual' ? (s.fechaFin || s.fecha || '') : '';
+  onTipoChange();
+
+  renderSteps();
+  renderLinks();
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+function closePanel() {
+  activeId = null;
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+}
+
+function onAreaChange() {
+  const a = AREAS.find(x => x.id === document.getElementById('p-area').value);
+  document.getElementById('p-dot').className = 'area-dot ' + (a ? a.color : 'teal');
+}
+
+function onTipoChange() {
+  const tipo = document.getElementById('p-tipo').value;
+  const mensual = tipo === 'mensual';
+  const anual = tipo === 'anual';
+  document.getElementById('f-ant').style.display = mensual ? '' : 'none';
+  document.getElementById('f-from').style.display = mensual ? '' : 'none';
+  document.getElementById('f-to').style.display = mensual ? '' : 'none';
+  document.getElementById('f-fecha').style.display = anual ? '' : 'none';
+  document.getElementById('f-fecha-fin').style.display = anual ? '' : 'none';
+  const hint = document.getElementById('p-hint');
+  if (mensual) hint.textContent = 'Se repetirá en los doce meses, en esos mismos días.';
+  else if (anual) hint.textContent = 'Se repetirá cada año en esas mismas fechas. El año que elijas no importa. Si dura un día, deja "hasta" vacío.';
+  else hint.textContent = 'No aparecerá en el calendario hasta que le pongas fechas.';
+}
+
+let editandoPaso = null;   // índice del paso en edición, o null
+
+function renderSteps() {
+  const el = document.getElementById('p-steps');
+  el.innerHTML = draftSteps.length
+    ? draftSteps.map((s, i) => {
+        // Fila en modo edición: el texto del paso como campo
+        if (editandoPaso === i) {
+          return `
+          <div class="row-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+            <textarea id="edit-paso" rows="3"
+              onkeydown="if(event.key==='Escape')cancelarPaso()">${esc(s)}</textarea>
+            <div style="display:flex; gap:6px; justify-content:flex-end;">
+              <button class="btn" onclick="cancelarPaso()">Cancelar</button>
+              <button class="btn btn-primary" onclick="guardarPaso(${i})"><i class="ti ti-check"></i>Aplicar</button>
+            </div>
+          </div>`;
+        }
+        return `
+      <div class="row-item arrastrable" draggable="true"
+           ondragstart="onRowDragStart(event,'paso',${i})"
+           ondragover="onRowDragOver(event,${i})"
+           ondragleave="onRowDragLeave(event)"
+           ondrop="onRowDrop(event,'paso',${i})"
+           ondragend="onRowDragEnd(event)">
+        <i class="ti ti-grip-vertical row-grip"></i>
+        <span class="row-num">${i + 1}</span>
+        <div class="row-text">${esc(s)}</div>
+        <button class="icon-btn" onclick="editarPaso(${i})" title="Editar"><i class="ti ti-pencil"></i></button>
+        <button class="icon-btn danger" onclick="delStep(${i})" title="Quitar"><i class="ti ti-x"></i></button>
+      </div>`;
+      }).join('')
+    : `<p class="empty" style="padding:2px 0;">Sin pasos todavía.</p>`;
+
+  if (editandoPaso !== null) {
+    const campo = document.getElementById('edit-paso');
+    if (campo) { campo.focus(); campo.selectionStart = campo.value.length; }
+  }
+}
+
+function editarPaso(i) { editandoPaso = i; renderSteps(); }
+function cancelarPaso() { editandoPaso = null; renderSteps(); }
+function guardarPaso(i) {
+  const c = document.getElementById('edit-paso');
+  if (!c) return;
+  const v = c.value.trim();
+  if (!v) { toast('El paso no puede quedar vacío'); return; }
+  draftSteps[i] = v;
+  editandoPaso = null;
+  renderSteps();
+}
+function addStep() {
+  const inp = document.getElementById('p-new-step');
+  const v = inp.value.trim();
+  if (!v) return;
+  draftSteps.push(v);
+  inp.value = '';
+  renderSteps();
+}
+function delStep(i) { draftSteps.splice(i, 1); renderSteps(); }
+
+let editandoLink = null;   // índice del enlace que se está editando, o null
+
+function renderLinks() {
+  const el = document.getElementById('p-links');
+  el.innerHTML = draftLinks.length
+    ? draftLinks.map((l, i) => {
+        // Fila en modo edición: nombre y URL como campos
+        if (editandoLink === i) {
+          return `
+          <div class="row-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+            <input type="text" id="edit-link-name" value="${esc(l.name || '')}" placeholder="Nombre"
+              onkeydown="if(event.key==='Enter')guardarLink(${i}); if(event.key==='Escape')cancelarLink()">
+            <input type="text" id="edit-link-url" value="${esc(l.url || '')}" placeholder="URL o ruta"
+              onkeydown="if(event.key==='Enter')guardarLink(${i}); if(event.key==='Escape')cancelarLink()">
+            <div style="display:flex; gap:6px; justify-content:flex-end;">
+              <button class="btn" onclick="cancelarLink()">Cancelar</button>
+              <button class="btn btn-primary" onclick="guardarLink(${i})"><i class="ti ti-check"></i>Aplicar</button>
+            </div>
+          </div>`;
+        }
+        const esWeb = /^https?:\/\//i.test(l.url || '');
+        const nombre = l.name && l.name.trim() ? l.name : l.url;
+        const cuerpo = esWeb
+          ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(nombre)}</a>`
+          : `${esc(nombre)}<br><span class="hint">${esc(l.url)}</span>`;
+        return `
+        <div class="row-item arrastrable" draggable="true"
+             ondragstart="onRowDragStart(event,'link',${i})"
+             ondragover="onRowDragOver(event,${i})"
+             ondragleave="onRowDragLeave(event)"
+             ondrop="onRowDrop(event,'link',${i})"
+             ondragend="onRowDragEnd(event)">
+          <i class="ti ti-grip-vertical row-grip"></i>
+          <i class="ti ti-link" style="color:var(--blue-dark); font-size:13px; margin-top:3px;"></i>
+          <div class="row-text">${cuerpo}</div>
+          <button class="icon-btn" onclick="editarLink(${i})" title="Editar"><i class="ti ti-pencil"></i></button>
+          <button class="icon-btn danger" onclick="delLink(${i})" title="Quitar"><i class="ti ti-x"></i></button>
+        </div>`;
+      }).join('')
+    : `<p class="empty" style="padding:2px 0;">Sin enlaces todavía.</p>`;
+
+  if (editandoLink !== null) {
+    const campo = document.getElementById('edit-link-url');
+    if (campo) campo.focus();
+  }
+}
+
+// ── Reordenar pasos y enlaces arrastrando ────────────────────────
+let dragRow = null;   // { tipo: 'paso' | 'link', i }
+
+function onRowDragStart(ev, tipo, i) {
+  dragRow = { tipo, i };
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(i)); } catch (e) {}
+  ev.currentTarget.classList.add('fila-arrastrando');
+}
+function onRowDragOver(ev, i) {
+  if (!dragRow) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  if (dragRow.i !== i) ev.currentTarget.classList.add('fila-destino');
+}
+function onRowDragLeave(ev) { ev.currentTarget.classList.remove('fila-destino'); }
+function onRowDrop(ev, tipo, i) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('fila-destino');
+  if (!dragRow || dragRow.tipo !== tipo || dragRow.i === i) return;
+  const arr = tipo === 'paso' ? draftSteps : draftLinks;
+  const [movido] = arr.splice(dragRow.i, 1);
+  arr.splice(i, 0, movido);
+  dragRow = null;
+  if (tipo === 'paso') renderSteps(); else { editandoLink = null; renderLinks(); }
+}
+function onRowDragEnd(ev) {
+  dragRow = null;
+  document.querySelectorAll('.row-item').forEach(r =>
+    r.classList.remove('fila-arrastrando', 'fila-destino'));
+}
+
+function editarLink(i) { editandoLink = i; renderLinks(); }
+function cancelarLink() { editandoLink = null; renderLinks(); }
+
+function guardarLink(i) {
+  const n = document.getElementById('edit-link-name');
+  const u = document.getElementById('edit-link-url');
+  if (!u) return;
+  const url = u.value.trim();
+  if (!url) { toast('El enlace necesita una URL o ruta'); return; }
+  draftLinks[i] = { ...draftLinks[i], name: n ? n.value.trim() : '', url };
+  editandoLink = null;
+  renderLinks();
+}
+function addLink() {
+  const n = document.getElementById('p-link-name');
+  const u = document.getElementById('p-link-url');
+  const url = u.value.trim();
+  if (!url) { toast('Escribe la URL o la ruta del enlace'); return; }
+  draftLinks.push({ name: n.value.trim(), url });
+  n.value = ''; u.value = '';
+  renderLinks();
+}
+function delLink(i) { draftLinks.splice(i, 1); renderLinks(); }
+
+function savePanel() {
+  const t = TASK_MAP[activeId];
+  if (!t) return;
+
+  const nuevoTitulo = document.getElementById('p-title').value.trim();
+  if (!nuevoTitulo) { toast('La tarea necesita un nombre'); return; }
+
+  const tipo = document.getElementById('p-tipo').value;
+
+  if (tipo === 'mensual') {
+    let from = parseInt(document.getElementById('p-from').value, 10);
+    let to = parseInt(document.getElementById('p-to').value, 10);
+    if (!(from >= 1 && from <= 31)) { toast('El día de inicio tiene que estar entre 1 y 31'); return; }
+    if (!(to >= 1 && to <= 31)) { toast('El día final tiene que estar entre 1 y 31'); return; }
+    if (to < from) { const x = from; from = to; to = x; }
+    t.sched = { tipo:'mensual', dayFrom: from, dayTo: to, offset: parseInt(document.getElementById('p-ant').value, 10) };
+  } else if (tipo === 'anual') {
+    let f = document.getElementById('p-fecha').value;
+    let ff = document.getElementById('p-fecha-fin').value;
+    if (!f) { toast('Elige la fecha de inicio'); return; }
+    if (ff && ff < f) { const x = f; f = ff; ff = x; }   // si vienen al revés, se ordenan
+    t.sched = { tipo:'anual', fecha: f, fechaFin: ff || f };
+  } else {
+    t.sched = null;
+  }
+
+  t.title = nuevoTitulo;
+  t.areaId = document.getElementById('p-area').value;
+  t.icon = document.getElementById('p-icon').value;
+  t.steps = [...draftSteps];
+  t.links = draftLinks.map(l => ({...l}));
+  save();
+  render();
+  closePanel();
+  toast('Tarea guardada');
+}
+
+function deleteTask() {
+  const t = TASK_MAP[activeId];
+  if (!t) return;
+  if (!confirm(`¿Eliminar "${t.title}"? No se puede deshacer.`)) return;
+  TASKS = TASKS.filter(x => x.id !== activeId);
+  save();
+  closePanel();
+  render();
+  toast('Tarea eliminada');
+}
+
+// ══════════════════════════════════════════════════════════════
+// NUEVA TAREA
+// ══════════════════════════════════════════════════════════════
+function openTaskModal() {
+  document.getElementById('m-title').value = '';
+  document.getElementById('m-area').value = 'centros';
+  document.getElementById('m-icon').value = 'ti-list';
+  document.getElementById('modal-bg').classList.add('open');
+  document.getElementById('m-title').focus();
+}
+function closeTaskModal() { document.getElementById('modal-bg').classList.remove('open'); }
+
+function createTask() {
+  const title = document.getElementById('m-title').value.trim();
+  if (!title) { toast('Ponle nombre a la tarea'); return; }
+  const id = 't' + Date.now().toString(36);
+  TASKS.push({
+    id, areaId: document.getElementById('m-area').value, title,
+    icon: document.getElementById('m-icon').value,
+    sched: null, steps: [], links: []
+  });
+  save();
+  rebuildMap();
+  closeTaskModal();
+  render();
+  openPanel(id);
+}
+
+let toastT = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 2300);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('link-modal-bg').classList.contains('open')) closeLinkModal();
+  else if (document.getElementById('modal-bg').classList.contains('open')) closeTaskModal();
+  else if (activeId) closePanel();
+});
+
+render();
+</script>
+</body>
+</html>
