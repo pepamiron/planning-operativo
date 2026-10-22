@@ -97,6 +97,14 @@ h1 i { color: var(--teal); font-size: 20px; }
 .card.drop-target { border-color: var(--teal); border-style: dashed; }
 .icon-btn:disabled { opacity: .3; cursor: default; }
 .icon-btn:disabled:hover { background: transparent; color: var(--text-faint); }
+/* Filas de pasos y enlaces: se reordenan arrastrando */
+.row-item.arrastrable { cursor: grab; }
+.row-item.arrastrable:hover { background: var(--surface2); border-radius: 5px; }
+.row-item.fila-arrastrando { opacity: .4; cursor: grabbing; }
+.row-item.fila-destino { box-shadow: inset 0 2px 0 var(--teal); }
+.row-grip { color: var(--text-faint); font-size: 13px; margin-top: 3px; flex-shrink: 0; opacity: 0; transition: opacity .15s ease; }
+.row-item.arrastrable:hover .row-grip { opacity: .6; }
+@media (hover: none) { .row-grip { opacity: .6; } }
 .card.teal { border-left-color: var(--teal); }
 .card.blue { border-left-color: var(--blue); }
 .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
@@ -1643,11 +1651,15 @@ function renderSteps() {
   const el = document.getElementById('p-steps');
   el.innerHTML = draftSteps.length
     ? draftSteps.map((s, i) => `
-      <div class="row-item">
+      <div class="row-item arrastrable" draggable="true"
+           ondragstart="onRowDragStart(event,'paso',${i})"
+           ondragover="onRowDragOver(event,${i})"
+           ondragleave="onRowDragLeave(event)"
+           ondrop="onRowDrop(event,'paso',${i})"
+           ondragend="onRowDragEnd(event)">
+        <i class="ti ti-grip-vertical row-grip"></i>
         <span class="row-num">${i + 1}</span>
         <div class="row-text">${esc(s)}</div>
-        <button class="icon-btn" onclick="moverPaso(${i},-1)" title="Subir" ${i === 0 ? 'disabled' : ''}><i class="ti ti-chevron-up"></i></button>
-        <button class="icon-btn" onclick="moverPaso(${i},1)" title="Bajar" ${i === draftSteps.length - 1 ? 'disabled' : ''}><i class="ti ti-chevron-down"></i></button>
         <button class="icon-btn danger" onclick="delStep(${i})" title="Quitar"><i class="ti ti-x"></i></button>
       </div>`).join('')
     : `<p class="empty" style="padding:2px 0;">Sin pasos todavía.</p>`;
@@ -1688,11 +1700,15 @@ function renderLinks() {
           ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(nombre)}</a>`
           : `${esc(nombre)}<br><span class="hint">${esc(l.url)}</span>`;
         return `
-        <div class="row-item">
+        <div class="row-item arrastrable" draggable="true"
+             ondragstart="onRowDragStart(event,'link',${i})"
+             ondragover="onRowDragOver(event,${i})"
+             ondragleave="onRowDragLeave(event)"
+             ondrop="onRowDrop(event,'link',${i})"
+             ondragend="onRowDragEnd(event)">
+          <i class="ti ti-grip-vertical row-grip"></i>
           <i class="ti ti-link" style="color:var(--blue-dark); font-size:13px; margin-top:3px;"></i>
           <div class="row-text">${cuerpo}</div>
-          <button class="icon-btn" onclick="moverLink(${i},-1)" title="Subir" ${i === 0 ? 'disabled' : ''}><i class="ti ti-chevron-up"></i></button>
-          <button class="icon-btn" onclick="moverLink(${i},1)" title="Bajar" ${i === draftLinks.length - 1 ? 'disabled' : ''}><i class="ti ti-chevron-down"></i></button>
           <button class="icon-btn" onclick="editarLink(${i})" title="Editar"><i class="ti ti-pencil"></i></button>
           <button class="icon-btn danger" onclick="delLink(${i})" title="Quitar"><i class="ti ti-x"></i></button>
         </div>`;
@@ -1705,15 +1721,37 @@ function renderLinks() {
   }
 }
 
-// Mueve un elemento de un array una posición arriba o abajo
-function moverEn(arr, i, dir) {
-  const j = i + dir;
-  if (j < 0 || j >= arr.length) return false;
-  [arr[i], arr[j]] = [arr[j], arr[i]];
-  return true;
+// ── Reordenar pasos y enlaces arrastrando ────────────────────────
+let dragRow = null;   // { tipo: 'paso' | 'link', i }
+
+function onRowDragStart(ev, tipo, i) {
+  dragRow = { tipo, i };
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(i)); } catch (e) {}
+  ev.currentTarget.classList.add('fila-arrastrando');
 }
-function moverPaso(i, dir) { if (moverEn(draftSteps, i, dir)) renderSteps(); }
-function moverLink(i, dir) { if (moverEn(draftLinks, i, dir)) { editandoLink = null; renderLinks(); } }
+function onRowDragOver(ev, i) {
+  if (!dragRow) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  if (dragRow.i !== i) ev.currentTarget.classList.add('fila-destino');
+}
+function onRowDragLeave(ev) { ev.currentTarget.classList.remove('fila-destino'); }
+function onRowDrop(ev, tipo, i) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('fila-destino');
+  if (!dragRow || dragRow.tipo !== tipo || dragRow.i === i) return;
+  const arr = tipo === 'paso' ? draftSteps : draftLinks;
+  const [movido] = arr.splice(dragRow.i, 1);
+  arr.splice(i, 0, movido);
+  dragRow = null;
+  if (tipo === 'paso') renderSteps(); else { editandoLink = null; renderLinks(); }
+}
+function onRowDragEnd(ev) {
+  dragRow = null;
+  document.querySelectorAll('.row-item').forEach(r =>
+    r.classList.remove('fila-arrastrando', 'fila-destino'));
+}
 
 function editarLink(i) { editandoLink = i; renderLinks(); }
 function cancelarLink() { editandoLink = null; renderLinks(); }
