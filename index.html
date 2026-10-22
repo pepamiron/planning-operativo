@@ -1600,6 +1600,7 @@ function openPanel(id) {
   draftSteps = [...t.steps];
   draftLinks = t.links.map(l => ({...l}));
   editandoLink = null;
+  editandoPaso = null;
 
   document.getElementById('p-title').value = t.title;
   document.getElementById('p-area').value = t.areaId;
@@ -1647,10 +1648,25 @@ function onTipoChange() {
   else hint.textContent = 'No aparecerá en el calendario hasta que le pongas fechas.';
 }
 
+let editandoPaso = null;   // índice del paso en edición, o null
+
 function renderSteps() {
   const el = document.getElementById('p-steps');
   el.innerHTML = draftSteps.length
-    ? draftSteps.map((s, i) => `
+    ? draftSteps.map((s, i) => {
+        // Fila en modo edición: el texto del paso como campo
+        if (editandoPaso === i) {
+          return `
+          <div class="row-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+            <textarea id="edit-paso" rows="3"
+              onkeydown="if(event.key==='Escape')cancelarPaso()">${esc(s)}</textarea>
+            <div style="display:flex; gap:6px; justify-content:flex-end;">
+              <button class="btn" onclick="cancelarPaso()">Cancelar</button>
+              <button class="btn btn-primary" onclick="guardarPaso(${i})"><i class="ti ti-check"></i>Aplicar</button>
+            </div>
+          </div>`;
+        }
+        return `
       <div class="row-item arrastrable" draggable="true"
            ondragstart="onRowDragStart(event,'paso',${i})"
            ondragover="onRowDragOver(event,${i})"
@@ -1660,9 +1676,28 @@ function renderSteps() {
         <i class="ti ti-grip-vertical row-grip"></i>
         <span class="row-num">${i + 1}</span>
         <div class="row-text">${esc(s)}</div>
+        <button class="icon-btn" onclick="editarPaso(${i})" title="Editar"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn danger" onclick="delStep(${i})" title="Quitar"><i class="ti ti-x"></i></button>
-      </div>`).join('')
+      </div>`;
+      }).join('')
     : `<p class="empty" style="padding:2px 0;">Sin pasos todavía.</p>`;
+
+  if (editandoPaso !== null) {
+    const campo = document.getElementById('edit-paso');
+    if (campo) { campo.focus(); campo.selectionStart = campo.value.length; }
+  }
+}
+
+function editarPaso(i) { editandoPaso = i; renderSteps(); }
+function cancelarPaso() { editandoPaso = null; renderSteps(); }
+function guardarPaso(i) {
+  const c = document.getElementById('edit-paso');
+  if (!c) return;
+  const v = c.value.trim();
+  if (!v) { toast('El paso no puede quedar vacío'); return; }
+  draftSteps[i] = v;
+  editandoPaso = null;
+  renderSteps();
 }
 function addStep() {
   const inp = document.getElementById('p-new-step');
