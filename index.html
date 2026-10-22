@@ -1545,6 +1545,7 @@ function openPanel(id) {
   activeId = id;
   draftSteps = [...t.steps];
   draftLinks = t.links.map(l => ({...l}));
+  editandoLink = null;
 
   document.getElementById('p-title').value = t.title;
   document.getElementById('p-area').value = t.areaId;
@@ -1613,10 +1614,26 @@ function addStep() {
 }
 function delStep(i) { draftSteps.splice(i, 1); renderSteps(); }
 
+let editandoLink = null;   // índice del enlace que se está editando, o null
+
 function renderLinks() {
   const el = document.getElementById('p-links');
   el.innerHTML = draftLinks.length
     ? draftLinks.map((l, i) => {
+        // Fila en modo edición: nombre y URL como campos
+        if (editandoLink === i) {
+          return `
+          <div class="row-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+            <input type="text" id="edit-link-name" value="${esc(l.name || '')}" placeholder="Nombre"
+              onkeydown="if(event.key==='Enter')guardarLink(${i}); if(event.key==='Escape')cancelarLink()">
+            <input type="text" id="edit-link-url" value="${esc(l.url || '')}" placeholder="URL o ruta"
+              onkeydown="if(event.key==='Enter')guardarLink(${i}); if(event.key==='Escape')cancelarLink()">
+            <div style="display:flex; gap:6px; justify-content:flex-end;">
+              <button class="btn" onclick="cancelarLink()">Cancelar</button>
+              <button class="btn btn-primary" onclick="guardarLink(${i})"><i class="ti ti-check"></i>Aplicar</button>
+            </div>
+          </div>`;
+        }
         const esWeb = /^https?:\/\//i.test(l.url || '');
         const nombre = l.name && l.name.trim() ? l.name : l.url;
         const cuerpo = esWeb
@@ -1626,10 +1643,30 @@ function renderLinks() {
         <div class="row-item">
           <i class="ti ti-link" style="color:var(--blue-dark); font-size:13px; margin-top:3px;"></i>
           <div class="row-text">${cuerpo}</div>
+          <button class="icon-btn" onclick="editarLink(${i})" title="Editar"><i class="ti ti-pencil"></i></button>
           <button class="icon-btn danger" onclick="delLink(${i})" title="Quitar"><i class="ti ti-x"></i></button>
         </div>`;
       }).join('')
     : `<p class="empty" style="padding:2px 0;">Sin enlaces todavía.</p>`;
+
+  if (editandoLink !== null) {
+    const campo = document.getElementById('edit-link-url');
+    if (campo) campo.focus();
+  }
+}
+
+function editarLink(i) { editandoLink = i; renderLinks(); }
+function cancelarLink() { editandoLink = null; renderLinks(); }
+
+function guardarLink(i) {
+  const n = document.getElementById('edit-link-name');
+  const u = document.getElementById('edit-link-url');
+  if (!u) return;
+  const url = u.value.trim();
+  if (!url) { toast('El enlace necesita una URL o ruta'); return; }
+  draftLinks[i] = { ...draftLinks[i], name: n ? n.value.trim() : '', url };
+  editandoLink = null;
+  renderLinks();
 }
 function addLink() {
   const n = document.getElementById('p-link-name');
