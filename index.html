@@ -1314,8 +1314,12 @@ function tituloSemana(ini, fin) {
   return `${a} – ${b} ${fin.getFullYear()}`;
 }
 
-function occurrencesInWeek(ini, fin) {
-  const out = [];
+// fusionar: une los dos tramos de una tarea que cruza de mes (p. ej. del 28
+// al 1) en una sola barra. Se usa en la vista de semana, donde ambos tramos
+// caen juntos. En la vista de mes NO se fusiona, porque allí cada mes
+// muestra solo su parte.
+function occurrencesInWeek(ini, fin, fusionar) {
+  let out = [];
   const visto = new Set();
   // Meses que toca la semana (uno o dos)
   const cur = new Date(ini.getFullYear(), ini.getMonth(), 1);
@@ -1331,6 +1335,7 @@ function occurrencesInWeek(ini, fin) {
       visto.add(clave);
       out.push({
         task: o.task, sched: o.sched, ancla: o.ancla,
+        ini: a, fin: b,
         from: Math.max(0, Math.round((a - ini) / 86400000)) + 1,
         to:   Math.min(6, Math.round((b - ini) / 86400000)) + 1,
         mesY: mY, mesM: mM
@@ -1338,6 +1343,24 @@ function occurrencesInWeek(ini, fin) {
     });
     cur.setMonth(cur.getMonth() + 1);
   }
+
+  if (fusionar) {
+    out.sort((x, y) => x.ini - y.ini);
+    const unidos = [];
+    out.forEach(o => {
+      // ¿Hay ya un tramo de esta tarea que acaba justo el día anterior?
+      const previo = unidos.find(u => {
+        if (u.task.id !== o.task.id) return false;
+        const siguiente = new Date(u.fin);
+        siguiente.setDate(siguiente.getDate() + 1);
+        return siguiente.getTime() === o.ini.getTime();
+      });
+      if (previo) { previo.fin = o.fin; previo.to = o.to; }
+      else unidos.push({ ...o });
+    });
+    out = unidos;
+  }
+
   out.sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
   return out;
 }
@@ -1348,7 +1371,7 @@ const DIAS_SEM = ['lun','mar','mié','jue','vie','sáb','dom'];
 // mesFoco, si se pasa (vista de mes), apaga los días de los meses vecinos y
 // deja fuera sus tareas, para no mezclar dos meses en la misma fila.
 function weekStripHTML(ini, fin, mesFoco) {
-  let occ = occurrencesInWeek(ini, fin);
+  let occ = occurrencesInWeek(ini, fin, mesFoco === undefined);
   if (mesFoco !== undefined) occ = occ.filter(o => o.mesM === mesFoco);
   const today = new Date();
   const rows = occ.length;
@@ -1385,7 +1408,7 @@ function weekStripHTML(ini, fin, mesFoco) {
 }
 
 function weekBlockHTML(ini, fin) {
-  const occ = occurrencesInWeek(ini, fin);
+  const occ = occurrencesInWeek(ini, fin, true);
   return `
     <div class="month">
       <div class="month-name">${tituloSemana(ini, fin)}
