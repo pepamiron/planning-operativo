@@ -1330,7 +1330,7 @@ function occurrencesInWeek(ini, fin) {
       if (visto.has(clave)) return;      // evita repetir si la semana cruza meses
       visto.add(clave);
       out.push({
-        task: o.task, sched: o.sched,
+        task: o.task, sched: o.sched, ancla: o.ancla,
         from: Math.max(0, Math.round((a - ini) / 86400000)) + 1,
         to:   Math.min(6, Math.round((b - ini) / 86400000)) + 1,
         mesY: mY, mesM: mM
