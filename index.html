@@ -962,19 +962,39 @@ function occurrencesIn(year, month) {
       });
       return;
     }
-    const from = Math.min(Math.max(1, Number(s.dayFrom) || 1), total);
-    const to = Math.min(Math.max(from, Number(s.dayTo) || from), total);
-    out.push({ task: t, from, to, sched: s });
+    // Si el día final es menor que el inicial, el rango cruza al mes
+    // siguiente (p. ej. del 28 al 1). Se parte en dos tramos:
+    //  - cabeza: del día inicial al fin de este mes      (origen 0)
+    //  - cola:   del día 1 al final, viene del mes anterior (origen -1)
+    const dFrom = Math.max(1, Number(s.dayFrom) || 1);
+    const dTo = Math.max(1, Number(s.dayTo) || dFrom);
+    const cruzaMes = dTo < dFrom;
+
+    // ancla = desplazamiento desde el mes que se dibuja hasta el mes en que
+    // TERMINA la tarea, que es sobre el que se cuenta la antelación.
+    if (!cruzaMes) {
+      const from = Math.min(dFrom, total);
+      const to = Math.min(Math.max(from, dTo), total);
+      out.push({ task: t, from, to, sched: s, ancla: 0 });
+    } else {
+      // cabeza: empieza este mes y termina el siguiente -> ancla +1
+      const from = Math.min(dFrom, total);
+      out.push({ task: t, from, to: total, sched: s, ancla: 1 });
+      // cola: viene del mes anterior y termina aquí -> ancla 0
+      out.push({ task: t, from: 1, to: Math.min(dTo, total), sched: s, ancla: 0 });
+    }
   });
   // Primero las que empiezan antes; a igual inicio, las más largas arriba
   out.sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
   return out;
 }
 
-// Mes al que sirve una ocurrencia de un mes dado
-function targetMonth(year, month, s) {
+// Mes al que sirve una ocurrencia. La antelación se cuenta desde el mes en
+// que TERMINA la tarea: ancla desplaza del mes dibujado al mes de fin
+// (0 normalmente, 1 para la cabeza de un rango que acaba el mes siguiente).
+function targetMonth(year, month, s, ancla) {
   const n = s.tipo !== 'mensual' ? 0 : Number(s.offset) || 0;
-  const d = new Date(year, month + n, 1);
+  const d = new Date(year, month + (ancla || 0) + n, 1);
   return MES_CORTO[d.getMonth()] + (d.getFullYear() !== year ? ' ' + d.getFullYear() : '');
 }
 
@@ -999,7 +1019,7 @@ function monthBlockHTML(year, month, compact) {
     const s = o.sched;
     const label = s.tipo !== 'mensual'
       ? o.task.title
-      : `${o.task.title} · ${targetMonth(year, month, s)}`;
+      : `${o.task.title} · ${targetMonth(year, month, s, o.ancla)}`;
     return `<div class="bar ${antClass(s)}" style="grid-column:${o.from} / ${o.to + 1}; --row:${i + 2};"
       onclick="openPanel('${o.task.id}')" title="${esc(label)} — ${esc(schedText(s))}">
       <i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span></div>`;
@@ -1055,7 +1075,7 @@ function renderCalendario() {
     body.innerHTML = hoy.length
       ? `<div class="day-list">${hoy.map(o => {
           const s = o.sched;
-          const label = s.tipo !== 'mensual' ? o.task.title : `${o.task.title} · ${targetMonth(y, m, s)}`;
+          const label = s.tipo !== 'mensual' ? o.task.title : `${o.task.title} · ${targetMonth(y, m, s, o.ancla)}`;
           return `<div class="bar ${antClass(s)}" style="grid-column:auto; --row:auto; padding:9px 12px; font-size:13px;"
             onclick="openPanel('${o.task.id}')">
             <i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span>
@@ -1127,14 +1147,26 @@ function flujoItems(year, month) {
     const s = t.sched;
     if (!s || s.tipo !== 'mensual') return;   // las anuales no sirven a un mes concreto
     const n = Number(s.offset) || 0;
+    // La antelación se cuenta desde el mes en que TERMINA la tarea,
+    // así que ese es el mes al que se retrocede.
     const ref = new Date(year, month - n, 1);
-    const wy = ref.getFullYear(), wm = ref.getMonth();
-    const total = daysInMonth(wy, wm);
-    const from = Math.min(Math.max(1, Number(s.dayFrom) || 1), total);
-    const to = Math.min(Math.max(from, Number(s.dayTo) || from), total);
+    const fy = ref.getFullYear(), fm = ref.getMonth();
+
+    const dFrom = Math.max(1, Number(s.dayFrom) || 1);
+    const dTo = Math.max(1, Number(s.dayTo) || dFrom);
+    const cruzaMes = dTo < dFrom;
+
+    // Si cruza de mes, empieza el mes anterior al de finalización
+    const ini0 = new Date(fy, fm - (cruzaMes ? 1 : 0), 1);
+    const iy = ini0.getFullYear(), im = ini0.getMonth();
+    const totalIni = daysInMonth(iy, im), totalFin = daysInMonth(fy, fm);
+    const from = Math.min(dFrom, totalIni);
+    const to = Math.min(cruzaMes ? dTo : Math.max(from, dTo), totalFin);
+
     out.push({
-      task: t, sched: s, wy, wm, from, to,
-      ini: new Date(wy, wm, from), fin: new Date(wy, wm, to)
+      task: t, sched: s, wy: iy, wm: im, from, to, cruzaMes,
+      fy, fm,
+      ini: new Date(iy, im, from), fin: new Date(fy, fm, to)
     });
   });
   out.sort((a, b) => a.ini - b.ini);
@@ -1193,9 +1225,11 @@ function renderFlujo() {
     const area = AREAS.find(a => a.id === it.task.areaId);
     const estado = it.fin < hoy ? 'pasado' : (it.ini > hoy ? 'futuro' : 'curso');
     const txtEstado = estado === 'pasado' ? 'Ya pasó' : (estado === 'curso' ? 'En plazo ahora' : 'Pendiente');
-    const rango = it.from === it.to
-      ? `${it.from} ${MES_CORTO[it.wm]}`
-      : `${it.from}–${it.to} ${MES_CORTO[it.wm]}`;
+    const rango = it.cruzaMes
+      ? `${it.from} ${MES_CORTO[it.wm]} – ${it.to} ${MES_CORTO[it.fm]}`
+      : (it.from === it.to
+          ? `${it.from} ${MES_CORTO[it.wm]}`
+          : `${it.from}–${it.to} ${MES_CORTO[it.wm]}`);
     const n = Number(it.sched.offset) || 0;
     html += `
       <div class="flujo-row ${estado}" onclick="openPanel('${it.task.id}')">
@@ -1341,7 +1375,7 @@ function weekStripHTML(ini, fin, mesFoco) {
     const area = AREAS.find(a => a.id === o.task.areaId);
     const label = s.tipo !== 'mensual'
       ? o.task.title
-      : `${o.task.title} · ${targetMonth(o.mesY, o.mesM, s)}`;
+      : `${o.task.title} · ${targetMonth(o.mesY, o.mesM, s, o.ancla)}`;
     return `<div class="bar ${antClass(s)}" style="grid-column:${o.from} / ${o.to + 1}; --row:${i + 2};"
       onclick="openPanel('${o.task.id}')" title="${esc(label)} — ${esc(schedText(s))}">
       <span class="area-dot ${area ? area.color : 'teal'}"></span><i class="ti ${esc(o.task.icon)}"></i><span class="bar-txt">${esc(label)}</span></div>`;
@@ -1647,7 +1681,7 @@ function onTipoChange() {
   document.getElementById('f-fecha').style.display = anual ? '' : 'none';
   document.getElementById('f-fecha-fin').style.display = anual ? '' : 'none';
   const hint = document.getElementById('p-hint');
-  if (mensual) hint.textContent = 'Se repetirá en los doce meses, en esos mismos días.';
+  if (mensual) hint.textContent = 'Se repetirá en los doce meses. Si el día final es menor que el inicial (28 → 1), la tarea cruza al mes siguiente y la antelación se cuenta desde el mes en que termina.';
   else if (anual) hint.textContent = 'Se repetirá cada año en esas mismas fechas. El año que elijas no importa. Si dura un día, deja "hasta" vacío.';
   else hint.textContent = 'No aparecerá en el calendario hasta que le pongas fechas.';
 }
@@ -1830,7 +1864,6 @@ function savePanel() {
     let to = parseInt(document.getElementById('p-to').value, 10);
     if (!(from >= 1 && from <= 31)) { toast('El día de inicio tiene que estar entre 1 y 31'); return; }
     if (!(to >= 1 && to <= 31)) { toast('El día final tiene que estar entre 1 y 31'); return; }
-    if (to < from) { const x = from; from = to; to = x; }
     t.sched = { tipo:'mensual', dayFrom: from, dayTo: to, offset: parseInt(document.getElementById('p-ant').value, 10) };
   } else if (tipo === 'anual') {
     let f = document.getElementById('p-fecha').value;
